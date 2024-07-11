@@ -1,0 +1,13 @@
+.idea/
+__pycache__/
+FSM/build
+FSM/FSM.egg-info
+dev_notebooks
+FSM/FSM.cpython-39-x86_64-linux-gnu.so
+FSM/fsm.pyf
+ASurf_WFDE5_CRU_v2.0.nc
+FSM_met
+FSM_Richard.py
+WFDE5_Hintereisferner_1980-2019.nc
+WFDE5toFSM.py
+
