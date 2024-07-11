@@ -3,7 +3,7 @@ This is a repository to build FSM-OGGM mass balance class and test the code in A
 To install 
 
 ``
-git clone https://github.com/bearecinos/FSM.git
+git clone https://github.com/bearecinos/FSM-OGGM.git
 ``
 
 Then follow the steps inside the FSM folder [README](https://github.com/bearecinos/FSM/tree/main/FSM#readme).
