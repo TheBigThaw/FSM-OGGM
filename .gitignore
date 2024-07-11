@@ -4,6 +4,7 @@ FSM/build
 FSM/FSM.egg-info
 dev_notebooks
 FSM/FSM.cpython-39-x86_64-linux-gnu.so
+FSM/*.so
 FSM/fsm.pyf
 ASurf_WFDE5_CRU_v2.0.nc
 FSM_met

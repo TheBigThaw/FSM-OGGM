@@ -11,6 +11,7 @@ cfg.PARAMS['border'] = 80
 reset=False
 
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM', reset=reset)
+print('we are working here', cfg.PATHS['working_dir'])
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
 cfg.PARAMS['use_tar_shapefiles'] = True
@@ -59,7 +60,7 @@ for task in task_list:
 workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
 
 gdir = gdirs[0]
-# Get the calibrated mass-balance model - the default is to use OGGM's "MonthlyTIModel"
+
 
 mass_balance = FactorialSnowpackModel(gdir)
 print(mass_balance.get_annual_mb())
