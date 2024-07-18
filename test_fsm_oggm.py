@@ -1,7 +1,7 @@
 import geopandas as gpd
 from oggm import cfg, utils
 from oggm import workflow, tasks
-from FMS_oggm_MB import FactorialSnowpackModel
+from FMS_oggm_MB import FactorialSnowpackModel, process_wfde5_data
 cfg.initialize()
 
 cfg.PARAMS['use_multiprocessing'] = True
@@ -58,6 +58,7 @@ for task in task_list:
 
 # Distribute
 workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
+workflow.execute_entity_task(process_wfde5_data, gdirs)
 
 gdir = gdirs[0]
 
