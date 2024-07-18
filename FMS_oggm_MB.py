@@ -11,6 +11,7 @@ from oggm.utils import ncDataset
 from oggm import cfg, utils
 import xarray as xr
 import glob
+import re
 from functools import partial
 from progressbar import ProgressBar, Percentage, Bar
 import FSM
@@ -73,9 +74,17 @@ def process_wfde5_data(gdir,
     paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['climate_file'],
                                                 '**/*' + '_WFDE5_CRU_' + '*_v2.0.nc')))
 
+    files = []
+    for path in paths_files:
+        match = re.findall(r'\d+', path)
+        if match:
+            number = int(match[1])
+            if number >= int(y0) and number <= int(y1):
+                files.append(path)
+
     partial_func = partial(_preprocess, i=i, j=j)
 
-    ds = xr.open_mfdataset(paths_files,
+    ds = xr.open_mfdataset(files,
                            concat_dim='time',
                            preprocess=partial_func,
                            engine='netcdf4',
