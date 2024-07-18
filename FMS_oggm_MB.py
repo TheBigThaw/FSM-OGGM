@@ -5,17 +5,14 @@ Mass balance class FSM - OGGM coupling
 import logging
 import os
 import numpy as np
-import pandas as pd
 from netCDF4 import Dataset
-import warnings
-import salem
 from oggm.core.massbalance import MassBalanceModel
 from oggm.utils import ncDataset
 from oggm import cfg, utils
-from oggm.exceptions import (InvalidParamsError)
 import xarray as xr
 import glob
 from functools import partial
+from progressbar import ProgressBar, Percentage, Bar
 import FSM
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
@@ -48,6 +45,7 @@ def process_wfde5_data(gdir,
     Process WFDE5 meteorological variables and put them in an FSM ready format
     per glacier directory
     """
+    pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=300).start()
 
     output_file_name = gdir.get_filepath('climate_historical_fsm')
     if os.path.exists(output_file_name):
@@ -57,7 +55,7 @@ def process_wfde5_data(gdir,
     lon = gdir.cenlon
 
     if y0 is None:
-        y0 = '1979'
+        y0 = '1980'
     if y1 is None:
         y1 = '2019'
 
@@ -78,9 +76,11 @@ def process_wfde5_data(gdir,
     partial_func = partial(_preprocess, i=i, j=j)
 
     ds = xr.open_mfdataset(paths_files,
-                           combine='nested',
-                           concat_dim="time",
-                           preprocess=partial_func)
+                           concat_dim='time',
+                           preprocess=partial_func,
+                           engine='netcdf4',
+                           parallel=True,
+                           combine='nested')
 
     ds.attrs = {'author': 'Beatriz Recinos and Richard Essery',
                 'author_info': 'Big thaw OGGM-FSM',
@@ -91,7 +91,12 @@ def process_wfde5_data(gdir,
                 'yr_0': y0,
                 'yr_1': y1}
 
-    ds.load().to_netcdf(gdir.get_filepath('climate_historical_fsm'))
+    ds.load().to_netcdf(gdir.get_filepath('climate_historical_fsm'),
+                        mode='w',
+                        format='NETCDF4',
+                        engine='netcdf4')
+
+    pbar.finish()
 
 
 class FactorialSnowpackModel(MassBalanceModel):
