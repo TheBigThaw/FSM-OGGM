@@ -3,9 +3,9 @@ Mass balance class FSM - OGGM coupling
 """
 # External libraries
 import logging
+import multiprocessing
 import os
 import numpy as np
-from netCDF4 import Dataset
 from oggm.core.massbalance import MassBalanceModel
 from oggm.utils import ncDataset
 from oggm import cfg, utils
@@ -27,15 +27,72 @@ cfg.add_to_basenames('climate_historical_fsm',
 log = logging.getLogger(__name__)
 
 
+def find_files_per_var(var='', y0=None, y1=None):
+    """
+    Find file paths per variable in climate dir
+    :param var: Climate variable to find
+    :param y0: (optional) if None picks 1980
+    :param y1: (optional) if None picks 2019
+    :return: paths with file names matching the variable and the years selected
+
+    """
+
+    if y0 is None:
+        y0 = '1980'
+    if y1 is None:
+        y1 = '2019'
+
+    paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['climate_file'],
+                                                '**/*' + var + '_WFDE5_CRU_' + '*_v2.0.nc')))
+
+    files = []
+    for path in paths_files:
+        match = re.findall(r'\d+', path)
+        if match:
+            number = int(match[1])
+            if int(y0) <= number <= int(y1):
+                files.append(path)
+
+    assert os.path.isfile(files[0])
+    assert os.path.isfile(files[-1])
+    print("File for beguinning and end of the time series exist")
+    print(files[0])
+    print(files[-1])
+    return files
+
+
 def _preprocess(x, i, j):
     """
     Preprocess to pass to xarray.open_mfdataset()
     :param x: Xarray Dataset
-    :param i: coordinate for longitude
-    :param j: coordinate for latitude
+    :param i: index  for longitude
+    :param j: index for latitude
     :return: a selected xarray Dataset for two specific coordinates
     """
     return x.isel(lat=j, lon=i)
+
+
+def xropen_mfdataset(files,
+                     lon=None,
+                     lat=None):
+    """
+    Wrapper around xr.open_mfdataset() to pass a specific set of paths
+    per climate variable
+    :param files: files for each climate variable
+    :param lon: longitude
+    :param lat: latitude
+    :return: a data set per variable concatenated by time and crop to
+    the centre lat and lon of a glacier.
+    """
+    partial_func = partial(_preprocess, i=lon, j=lat)
+
+    ds = xr.open_mfdataset(files,
+                           concat_dim='time',
+                           preprocess=partial_func,
+                           engine='netcdf4',
+                           combine='nested')
+
+    return ds.load()
 
 
 @utils.entity_task(log, writes=['climate_historical_fsm'])
@@ -71,25 +128,43 @@ def process_wfde5_data(gdir,
     ref_pix_lon = df['lon'][i].values
     ref_hgt = df['ASurf'][j, i].values
 
-    paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['climate_file'],
-                                                '**/*' + '_WFDE5_CRU_' + '*_v2.0.nc')))
+    lwdown = 'LWdown'
+    lwdown_fpaths = find_files_per_var(lwdown, y0=y0, y1=y1)
+    psurf = 'PSurf'
+    psurf_fpaths = find_files_per_var(psurf, y0=y0, y1=y1)
+    qair = 'Qair'
+    qair_fpaths = find_files_per_var(qair, y0=y0, y1=y1)
+    rainf = 'Rainf'
+    rainf_fpaths = find_files_per_var(rainf, y0=y0, y1=y1)
+    snowf = 'Snowf'
+    snowf_fpaths = find_files_per_var(snowf, y0=y0, y1=y1)
+    swdown = 'SWdown'
+    swdown_fpaths = find_files_per_var(swdown, y0=y0, y1=y1)
+    tair = 'Tair'
+    tair_fpaths = find_files_per_var(tair, y0=y0, y1=y1)
+    wind = 'Wind'
+    wind_fpaths = find_files_per_var(wind, y0=y0, y1=y1)
 
-    files = []
-    for path in paths_files:
-        match = re.findall(r'\d+', path)
-        if match:
-            number = int(match[1])
-            if number >= int(y0) and number <= int(y1):
-                files.append(path)
+    # Prepare the data for Pool of workers
+    paths = [lwdown_fpaths, psurf_fpaths, qair_fpaths, rainf_fpaths, snowf_fpaths, swdown_fpaths, tair_fpaths,
+             wind_fpaths]
+    ii = np.concatenate([[i]] * 8, axis=0)
+    jj = np.concatenate([[j]] * 8, axis=0)
 
-    partial_func = partial(_preprocess, i=i, j=j)
+    # Only 8 nodes at the time per glacier
+    workers = 8
+    if __name__ == '__main__':
+        with multiprocessing.Pool(processes=workers) as pool:
+            dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
+                                                                                    zip(paths,
+                                                                                        ii,
+                                                                                        jj)
+                                                                                    )
+            pool.close()
+            pool.join()
 
-    ds = xr.open_mfdataset(files,
-                           concat_dim='time',
-                           preprocess=partial_func,
-                           engine='netcdf4',
-                           parallel=True,
-                           combine='nested')
+    # Merge all variables into a single data frame
+    ds = xr.merge([dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind])
 
     ds.attrs = {'author': 'Beatriz Recinos and Richard Essery',
                 'author_info': 'Big thaw OGGM-FSM',
