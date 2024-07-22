@@ -43,7 +43,11 @@ def find_files_per_var(var='', y0=None, y1=None):
     if y1 is None:
         y1 = '2019'
 
-    paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['climate_file'],
+    if var in ('Rainf', 'Snowf'):
+        paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['climate_file'],
+                                                    '**/*' + var + '_WFDE5_CRU+GPCC_' + '*_v2.0.nc')))
+    else:
+        paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['climate_file'],
                                                 '**/*' + var + '_WFDE5_CRU_' + '*_v2.0.nc')))
 
     files = []
