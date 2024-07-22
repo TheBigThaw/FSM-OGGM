@@ -6,6 +6,7 @@ import logging
 import multiprocessing
 import os
 import numpy as np
+from datetime import datetime
 from oggm.core.massbalance import MassBalanceModel
 from oggm.utils import ncDataset
 from oggm import cfg, utils
@@ -150,6 +151,21 @@ def process_wfde5_data(gdir,
              wind_fpaths]
     ii = np.concatenate([[i]] * 8, axis=0)
     jj = np.concatenate([[j]] * 8, axis=0)
+
+    d0 = datetime(int(y0), 1, 1, 0, 0, 0)
+    d1 = datetime(int(y1), 12, 31, 23, 0, 0)
+    delta = d1 - d0
+    dimensions = (delta.days + 1) * 24
+
+    coords = dict(time=(range(dimensions)), lon=None, lat=None)
+    dlw = xr.DataArray(None, coords=coords, dims=("time",), name=lwdown, attrs=None)
+    dsurf = xr.DataArray(None, coords=coords, dims=("time",), name=psurf, attrs=None)
+    dqair = xr.DataArray(None, coords=coords, dims=("time",), name=qair, attrs=None)
+    drainf = xr.DataArray(None, coords=coords, dims=("time",), name=rainf, attrs=None)
+    dsnowf = xr.DataArray(None, coords=coords, dims=("time",), name=snowf, attrs=None)
+    dswdown = xr.DataArray(None, coords=coords, dims=("time",), name=swdown, attrs=None)
+    dtair = xr.DataArray(None, coords=coords, dims=("time",), name=tair, attrs=None)
+    dwind = xr.DataArray(None, coords=coords, dims=("time",), name=wind, attrs=None)
 
     # Only 8 nodes at the time per glacier
     workers = 8
