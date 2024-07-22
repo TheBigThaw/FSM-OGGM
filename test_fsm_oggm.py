@@ -58,12 +58,14 @@ for task in task_list:
 
 # Distribute
 workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
-workflow.execute_entity_task(process_wfde5_data, gdirs)
+
+cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
+cfg.PARAMS['baseline_climate'] = 'CUSTOM'
+workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 
 gdir = gdirs[0]
 
-
-mass_balance = FactorialSnowpackModel(gdir)
+mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm')
 print(mass_balance.get_annual_mb())
 
 
