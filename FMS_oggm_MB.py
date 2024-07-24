@@ -10,6 +10,7 @@ from datetime import datetime
 from oggm.core.massbalance import MassBalanceModel
 from oggm.utils import ncDataset
 from oggm import cfg, utils
+from oggm import entity_task
 import xarray as xr
 import glob
 import re
@@ -100,7 +101,7 @@ def xropen_mfdataset(files,
     return ds.load()
 
 
-@utils.entity_task(log, writes=['climate_historical_fsm'])
+@entity_task(log, writes=['climate_historical_fsm'])
 def process_wfde5_data(gdir,
                        y0=None,
                        y1=None):
@@ -173,15 +174,14 @@ def process_wfde5_data(gdir,
 
     # Only 8 nodes at the time per glacier
     workers = 8
-    if __name__ == '__main__':
-        with multiprocessing.Pool(processes=workers) as pool:
-            dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
-                                                                                    zip(paths,
-                                                                                        ii,
-                                                                                        jj)
-                                                                                    )
-            pool.close()
-            pool.join()
+    with multiprocessing.Pool(processes=workers) as pool:
+        dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
+                                                                                zip(paths,
+                                                                                    ii,
+                                                                                    jj)
+                                                                               )
+        pool.close()
+        pool.join()
 
     # Merge all variables into a single data frame
     ds = xr.merge([dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind])
