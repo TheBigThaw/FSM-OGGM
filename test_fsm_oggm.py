@@ -1,7 +1,7 @@
 import geopandas as gpd
 from oggm import cfg, utils
 from oggm import workflow, tasks
-from FMS_oggm_MB import FactorialSnowpackModel, process_wfde5_data
+from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
 cfg.initialize()
 
 cfg.PARAMS['use_multiprocessing'] = True

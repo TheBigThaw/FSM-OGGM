@@ -1,0 +1,37 @@
+name: oggm_fsm
+channels:
+  - conda-forge
+dependencies:
+  - python==3.9.2
+  - numpy==1.26.4
+  - jupyter
+  - jupyterlab
+  - scipy
+  - pandas
+  - shapely
+  - matplotlib
+  - Pillow
+  - netcdf4
+  - scikit-image
+  - scikit-learn
+  - configobj
+  - xarray
+  - pytest
+  - dask
+  - bottleneck
+  - pyproj
+  - cartopy
+  - geopandas
+  - rasterio
+  - rioxarray
+  - seaborn
+  - salem
+  - motionless
+  - ipython
+  - pip 
+  - pip:
+    - tables==3.9.2
+    - joblib
+    - progressbar2
+    - oggm
+
