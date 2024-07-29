@@ -8,9 +8,9 @@ cfg.PARAMS['use_multiprocessing'] = True
 cfg.PARAMS['mp_processes'] = 2
 cfg.PARAMS['border'] = 80
 
-reset=False
+reset=True
 
-cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM', reset=reset)
+cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
 print('we are working here', cfg.PATHS['working_dir'])
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
@@ -61,6 +61,7 @@ workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
 
 cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
+
 
 if __name__ == '__main__':
     workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
