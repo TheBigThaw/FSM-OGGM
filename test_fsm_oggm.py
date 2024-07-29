@@ -9,6 +9,9 @@ cfg.PARAMS['mp_processes'] = 2
 cfg.PARAMS['border'] = 80
 
 reset=True
+print('Reset is set to ', reset)
+print('**Important set this to False to avoid '
+      'resetting the glacier directory everytime this is ran!**')
 
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
 print('we are working here', cfg.PATHS['working_dir'])

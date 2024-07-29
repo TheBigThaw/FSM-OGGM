@@ -82,10 +82,34 @@ python setup.py build
 python setup.py install
 ```
 
-4. Run OGGM test, ideally there should be one failing which can be ignored, see the following [issue](https://github.com/OGGM/oggm/issues/1714). Then test if FSM library has been installed correctly by opening python and importing the module.
+4. Run OGGM tests, ideally there should be one failing which can be ignored, see the following [issue](https://github.com/OGGM/oggm/issues/1714). 
+
+```
+cd oggm
+pytest.oggm  --disable-warnings
+```
+
+5. Then test if FSM-OGGM library has been installed correctly by opening python and importing the FSM module.
+
+```
+cd FSM-OGGM
+python
+```
+
+Then do
 
 ```
 import FSM
 ```
+
+
+5. Now you can run `test_fsm_oggm.py` via:
+
+```
+cd FSM-OGGM
+python test_fsm_oggm.py
+```
+
+**Important**: once you ran the test once, make sure to set reset=False, so you dont have to produce again and again the glacier directory and download the data for the RGI, pre-process glacier dirs etc...
 
 > Note: this repository code and documentation is a work in progress and might change alot dure to offline FSM development
