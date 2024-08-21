@@ -2,6 +2,9 @@ import geopandas as gpd
 from oggm import cfg, utils
 from oggm import workflow, tasks
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
+from IPython import embed
+from oggm.core.flowline import FileModel
+
 cfg.initialize()
 
 cfg.PARAMS['use_multiprocessing'] = True
@@ -35,6 +38,9 @@ minlat = 46.690
 maxlat = 47.170
 minlon = 10.6
 maxlon = 11.3
+zmin=2050
+zmax=3739
+Nbnd=15
 rof = gdf[gdf['CenLat'].between(minlat, maxlat) & gdf['CenLon'].between(minlon, maxlon)]
 
 rof = rof.sort_values('Area', ascending=False)
@@ -66,14 +72,17 @@ cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
 
-if __name__ == '__main__':
+if (__name__ == '__main__') and reset:
     workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
+
+print ("DONE PROCESSING wfde5 data")
 
 gdir = gdirs[0]
 
-mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm')
-print(mass_balance.get_annual_mb())
-
+mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', zmin=zmin, zmax=zmax, Nbnd=Nbnd)
+gdir.get_inversion_flowline_hw()
+fls = gdir.read_pickle('model_flowlines')
+print(mass_balance.get_annual_mb(year=1990,fls=fls))
 
 print('all worked')
 
