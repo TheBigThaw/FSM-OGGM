@@ -9,11 +9,14 @@ import numpy as np
 from datetime import datetime
 from oggm.core.massbalance import MassBalanceModel
 from oggm.utils import ncDataset
+import netCDF4
 from oggm import cfg, utils
 from oggm import entity_task
+from scipy.interpolate import interp1d
 import xarray as xr
 import glob
 import re
+from IPython import embed
 from functools import partial
 from progressbar import ProgressBar, Percentage, Bar
 import FSM
@@ -208,15 +211,18 @@ class FactorialSnowpackModel(MassBalanceModel):
                  gdir,
                  filename='climate_historical_fsm',
                  input_filesuffix='',
-                 mb=0.):
+                 mb=0.,
+                 zmin=None,
+                 zmax=None,
+                 Nbnd=None):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in m
 
         # FSM layers
-        self.zmin = 2507  # Centre of lowest elevation band (m)
-        self.zmax = 3739  # Centre of highest elevation band (m)
-        self.Nbnd = 10  # Number of elevation bands
+        self.zmin = zmin  # Centre of lowest elevation band (m)
+        self.zmax = zmax  # Centre of highest elevation band (m)
+        self.Nbnd = Nbnd  # Number of elevation bands
         self.zbnd = self.zmin + (np.arange(self.Nbnd) + 0.5) * (
                     self.zmax - self.zmin) / self.Nbnd  # Elevations of bands (m)
         self.Dmin = np.array([0.1, 0.2, 0.4], 'f')  # Minimum snow layer thicknesses (m)
@@ -254,12 +260,55 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.Ntim = int(len(self.time))
             self.zref = nc.getncattr('ref_hgt')
             self.dz = self.zbnd - self.zref
+            dates = netCDF4.num2date(self.time, units=nc['time'].units, 
+                    calendar=nc['time'].calendar)
+            self.years = np.array([date.year for date in dates])
+            self.months = np.array([date.month for date in dates])
         self._mb = mb
 
-    def get_annual_mb(self):
-        mb = FSM.fsmpy(self.Dice, self.Dmin, self.dz, self.LW, self.Ps,
-                       self.Qa, self.Rf, self.Sf, self.SW, self.Ta,
-                       self.Ua, self.albs, self.Dsnw, self.Nsnw, self.Sice,
+
+    def get_annual_mb(self, heights=None, year=None, fls=None):
+
+        if fls is None:
+            raise RuntimeError(f'FSM requires flow band detail')
+        else:
+            areas = fls[0].bin_area_m2
+            if heights is None:
+                heights = fls[0].surface_h
+
+        if year is not None:
+            inds = np.where(self.years==year)
+        else:
+            inds = np.where(self.years > -99999)
+
+        LW=self.LW[inds]
+        Ps=self.Ps[inds]
+        Qa=self.Qa[inds]
+        Rf=self.Rf[inds]
+        Sf=self.Sf[inds]
+        SW=self.SW[inds]
+        Ta=self.Ta[inds]
+        Ua=self.Ua[inds]
+        time=self.time[inds]
+        Ntim=int(len(time))
+        Nseg=int(len(areas))
+
+        mb = FSM.fsmpy(self.Dice, self.Dmin, self.dz, LW, Ps,
+                       Qa, Rf, Sf, SW, Ta, Ua,
+                       areas, heights, self.albs, self.Dsnw, self.Nsnw, self.Sice,
                        self.Sliq, self.Tice, self.Tsnw, self.Tsrf, self.Nbnd,
-                       self.Nice, self.Nsmx, self.Ntim)
-        return mb
+                       self.Nice, self.Nsmx, Ntim, Nseg)
+
+
+        if min(heights) < self.zmin or max(heights) > self.zmax:
+            raise RuntimeError(f'The heights provided are outside of the '
+                                   f'elevation bands for FSM')
+
+        else:
+
+            func = interp1d(self.zbnd, mb)
+            return func (heights)
+
+
+    def is_year_valid(self, year):
+        return self.ys <= year <= self.ye
