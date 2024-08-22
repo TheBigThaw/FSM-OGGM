@@ -267,7 +267,7 @@ class FactorialSnowpackModel(MassBalanceModel):
         self._mb = mb
 
 
-    def get_annual_mb(self, heights=None, year=None, fls=None):
+    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None):
 
         if fls is None:
             raise RuntimeError(f'FSM requires flow band detail')

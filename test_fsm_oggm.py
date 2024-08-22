@@ -17,6 +17,7 @@ print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
+#cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
 print('we are working here', cfg.PATHS['working_dir'])
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
@@ -79,10 +80,17 @@ print ("DONE PROCESSING wfde5 data")
 
 gdir = gdirs[0]
 
+#cfg.PARAMS['evolution_model'] = 'FluxBased'
+
 mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', zmin=zmin, zmax=zmax, Nbnd=Nbnd)
-gdir.get_inversion_flowline_hw()
-fls = gdir.read_pickle('model_flowlines')
-print(mass_balance.get_annual_mb(year=1990,fls=fls))
+#gdir.get_inversion_flowline_hw()
+#fls = gdir.read_pickle('model_flowlines')
+#print(mass_balance.get_annual_mb(year=1990,fls=fls))
+workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
+                             climate_filename='climate_historical_fsm',
+                             ys=1981, ye=2000,
+                             mb_model=mass_balance)
+                             
 
 print('all worked')
 
