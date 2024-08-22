@@ -17,7 +17,7 @@ print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
+#cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
 print('we are working here', cfg.PATHS['working_dir'])
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
