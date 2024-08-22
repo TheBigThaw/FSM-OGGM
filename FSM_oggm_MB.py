@@ -9,6 +9,7 @@ import numpy as np
 from datetime import datetime
 from oggm.core.massbalance import MassBalanceModel
 from oggm.utils import ncDataset
+from oggm.cfg import SEC_IN_YEAR
 import netCDF4
 from oggm import cfg, utils
 from oggm import entity_task
@@ -299,6 +300,15 @@ class FactorialSnowpackModel(MassBalanceModel):
                        self.Sliq, self.Tice, self.Tsnw, self.Tsrf, self.Nbnd,
                        self.Nice, self.Nsmx, Ntim, Nseg)
 
+        # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
+        
+        if year is None:
+            baseline_y = np.max(self.years) - np.min(self.years) + 1
+        else:
+            baseline_y = 1
+
+        rho = self.rho = cfg.PARAMS['ice_density']
+        mb = (mb / baseline_y) / SEC_IN_YEAR / rho
 
         if min(heights) < self.zmin or max(heights) > self.zmax:
             raise RuntimeError(f'The heights provided are outside of the '

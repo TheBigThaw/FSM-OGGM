@@ -17,7 +17,7 @@ print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-#cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
+cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
 print('we are working here', cfg.PATHS['working_dir'])
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
@@ -88,7 +88,7 @@ mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', z
 #print(mass_balance.get_annual_mb(year=1990,fls=fls))
 workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
                              climate_filename='climate_historical_fsm',
-                             ys=1981, ye=2000,
+                             ys=1981, ye=2019,
                              mb_model=mass_balance)
                              
 
