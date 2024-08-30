@@ -80,6 +80,7 @@ print ("DONE PROCESSING wfde5 data")
 
 gdir = gdirs[0]
 
+#NOTE: below is needed if not using the latest version of OGGM with minor bug fix
 #cfg.PARAMS['evolution_model'] = 'FluxBased'
 
 mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', zmin=zmin, zmax=zmax, Nbnd=Nbnd)
