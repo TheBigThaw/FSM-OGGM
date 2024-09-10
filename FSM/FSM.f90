@@ -144,15 +144,20 @@ end program FSM
 !-----------------------------------------------------------------------
 ! Landing routine for calling FSM from Python
 !-----------------------------------------------------------------------
-subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,                                  &
+subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,                             &
                  Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
-                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb)
+                 areas, heights,                                       &
+                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,              &
+                 massb)
 implicit none
-integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim
+integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
 real, dimension(Ntim), intent(in) :: LW,Ps,Qa,Rf,Sf,SW,Ta,Ua
+real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area of segments
+                                                     ! and surface height of each segment
+                                                     ! (even non-ice covered)
 real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
 real, dimension(Nsmx,Nbnd), intent(inout) :: Dsnw,Sice,Sliq,Tsnw
@@ -178,6 +183,12 @@ do n = 1, Ntim
   massb = massb - Mice
 end do
 massb = massb + SWE - SWE0
+
+! -- below is to test that arrays are being passed and is commented
+! -- floats are only correct to about 1 in 10^-8
+!print *, Nseg
+!print *, areas(1)
+!print *, heights(1)
 end subroutine FSMpy
 
 !-----------------------------------------------------------------------
