@@ -72,25 +72,35 @@ workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
 cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
-
-if (__name__ == '__main__') and reset:
-    workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
+# placeholder until Dan fixes the climate preprocessing data
+#workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 
 print ("DONE PROCESSING wfde5 data")
 
 gdir = gdirs[0]
 
-#NOTE: below is needed if not using the latest version of OGGM with minor bug fix
-#cfg.PARAMS['evolution_model'] = 'FluxBased'
-
 mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', zmin=zmin, zmax=zmax, Nbnd=Nbnd)
+
+fls = gdir.read_pickle('model_flowlines')
+print(mass_balance.get_annual_mb(year=1990, fls=fls))
+
+# Placeholder for next inversion steps until oggm changes
+# apparent_mb_from_any_mb() task
+#tasks.apparent_mb_from_any_mb(gdir, mb_model=mass_balance, fls=fls)
+
+## Steps to be tested
+#workflow.calibrate_inversion_from_consensus([gdir])
+#tasks.init_present_time_glacier(gdir)
+
+## Commenting this now to continue working on evolution after
+## we fix the inversion
 #gdir.get_inversion_flowline_hw()
 #fls = gdir.read_pickle('model_flowlines')
 #print(mass_balance.get_annual_mb(year=1990,fls=fls))
-workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
-                             climate_filename='climate_historical_fsm',
-                             ys=1981, ye=2019,
-                             mb_model=mass_balance)
+# workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
+#                              climate_filename='climate_historical_fsm',
+#                              ys=1981, ye=2019,
+#                              mb_model=mass_balance)
                              
 
 print('all worked')
