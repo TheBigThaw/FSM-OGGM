@@ -7,19 +7,20 @@ This is a "draft" repository to build a mass balance class, which couples [The F
 
 1. First clone the repository
 
-``
+```
 git clone https://github.com/bearecinos/FSM-OGGM.git
-``
+```
 
-2. Build a python environment compatible with `f2py`. For this, install an environment according to the following yml.
+2. Build a python environment compatible with `f2py`. For this, install an environment according to the following yml. `meson` and `ninja` are important to make the fortran `builddir`
 
 ```
 name: oggm_fsm
 channels:
   - conda-forge
 dependencies:
-  - python==3.9.2
-  - numpy==1.26.4
+dependencies:
+  - python==3.11.0
+  - numpy
   - jupyter
   - jupyterlab
   - scipy
@@ -46,70 +47,62 @@ dependencies:
   - ipython
   - pip 
   - pip:
-    - tables==3.9.2
+    - meson
+    - ninja
+    - tables
     - joblib
     - progressbar2
 ```
 
-A copy of this `environment_oggm_fsm.yml` file can be found under the FSM folder. Built your environment with mamba via:
+A copy of this lives in the `environment_oggm_fsm.yml` file, which can be found under the `FSM-OGGM/FSM` folder. Built your environment with mamba via:
 
 ```
 mamba env create -f environment_oggm_fsm.yml
 ```
 
-> At the moment we are fixing our numpy and python version due to an issue with [numpy.distutils.core and f2py](https://numpy.org/doc/stable/reference/distutils_status_migration.html#status-of-numpy-distutils-and-migration-advice). However, I think we can fix this by finding another way to write `setup.py` file and build the Fortran executable via a different method; I ran out of time to test another way of doing this. For more context see [f2py docs](https://numpy.org/doc/stable/f2py/index.html#f2py-user-guide-and-reference-manual) and this [blog](https://hackmd.io/@python-fortran-interface/SJ8kiUctd#f2py). Probably there is a better way!
- pytables is fixed too, so there are no conflicts with that numpy version and oggm test pass.
-
-For the OGGM installation, I recommend to install it via Github and from my branch, as some test are broken in the main OGGM repo:
+3. For the OGGM installation, I recommend to install it via Github:
 ```
-git clone https://github.com/bearecinos/oggm.git
+git clone https://github.com/OGGM/oggm.git
 cd oggm
 pip install -e .
 ```
 
-3. Built FSM python module with `f2py`.
+4. Don't foget to test your OGGM environment via:
 
 ```
-cd FSM
-```
-
-**Dont forget to activate your oggm_fsm env and be inside the FSM folder!**. Then run the following commands:
-
-```
-python -m numpy.f2py FSM.f90 -m FSM -h fsm.pyf
-python -m numpy.f2py -c fsm.pyf FSM.f90
-python setup.py build
-python setup.py install
-```
-
-4. Run OGGM tests, ideally there should be one failing which can be ignored, see the following [issue](https://github.com/OGGM/oggm/issues/1714). 
-
-```
-cd oggm
+mamba activate oggm_fsm
 pytest.oggm  --disable-warnings
 ```
 
-5. Then test if FSM-OGGM library has been installed correctly by opening python and importing the FSM module.
+5. If all is well you are ready to build the FSM python module with, `meson`, `ninja` and `f2py`. 
 
+**Dont forget to activate your oggm_fsm env and be inside the root FSM folder (i.e. ~/FSM-OGGM/..)**. In that root folder you will find a `meson.build` file which we will use to run the following commands on your terminal:
+
+> **Important**: before you run things, you should say yes to any message from the commands below and for the last two commands you might need sudo permissions! For servers if you can't install this due to sudo permissions; you can run in your local machine the first command and copy to the server the `builddir` folder that gets created, then do the last two commands.
+
+```
+meson setup builddir
+meson compile -C builddir
+meson install -C builddir
+```
+
+6. Then test if FSM-OGGM library has been installed correctly by opening python and importing the FSM module.
 ```
 cd FSM-OGGM
 python
 ```
-
-Then do
-
+Then in python do:
 ```
 import FSM
 ```
 
 
-5. Now you can run `test_fsm_oggm.py` via:
-
+7. Now you can run `test_fsm_oggm.py` via:
 ```
 cd FSM-OGGM
 python test_fsm_oggm.py
 ```
 
-**Important**: once you ran the test once, make sure to set reset=False, so you dont have to produce again and again the glacier directory and download the data for the RGI, pre-process glacier dirs etc...
+**Important**: once you ran the test once, make sure to set reset=False, so you don't have to produce again and again the glacier directory and download the data for the RGI, pre-process glacier dirs etc...
 
 > Note: this repository code and documentation is a work in progress and might change alot dure to offline FSM development
