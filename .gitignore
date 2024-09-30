@@ -1,6 +1,7 @@
 .idea/
 __pycache__/
 FSM/build
+FSM/buildir
 FSM/FSM.egg-info
 dev_notebooks
 FSM/FSM.cpython-39-x86_64-linux-gnu.so
