@@ -29,6 +29,7 @@ dependencies:
   - motionless
   - ipython
   - pip 
+  - setuptools==74.1.2
   - pip:
     - tables==3.9.2
     - joblib

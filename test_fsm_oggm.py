@@ -11,7 +11,7 @@ cfg.PARAMS['mp_processes'] = 2
 cfg.PARAMS['border'] = 80
 cfg.initialize(logging_level='DEBUG')
 
-reset=False
+reset=True
 print('Reset is set to ', reset)
 print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
@@ -69,13 +69,14 @@ elevation_band_task_list = [
 for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)
 
-cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
+#cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
+cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
 # placeholder until Dan fixes the climate preprocessing data
 # for now we just copy and paste a file
-#workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
-#print ("DONE PROCESSING wfde5 data")
+workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
+print ("DONE PROCESSING wfde5 data")
 
 gdir = gdirs[0]
 
@@ -98,6 +99,12 @@ workflow.calibrate_inversion_from_consensus(
 
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
+
+workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
+                             climate_filename='climate_historical_fsm',
+                             ys=1981, ye=2019,
+                             mb_model=mass_balance)
+
 print('all worked')
 
 

@@ -127,13 +127,19 @@ def process_wfde5_data(gdir,
     if y1 is None:
         y1 = '2019'
 
-    # nearest point on global 0.5 degree grid
-    i = round(2 * (179.75 + lon))
-    j = round(2 * (89.750 + lat))
 
     # location and height of reference pixel
     fpath = os.path.join(cfg.PATHS['climate_file'], 'ASurf_WFDE5_CRU_v2.0.nc')
     df = xr.open_dataset(fpath)
+
+    lonminWfde5 = df['lon'][0].values
+    latminWfde5 = df['lat'][0].values
+
+    # nearest point on global 0.5 degree grid
+    # NOTE i have written so it can be a clipped file or global
+    i = round(2 * (lon-lonminWfde5))
+    j = round(2 * (lat-latminWfde5))
+
     ref_pix_lat = df['lat'][j].values
     ref_pix_lon = df['lon'][i].values
     ref_hgt = df['ASurf'][j, i].values
