@@ -3,13 +3,13 @@ import geopandas as gpd
 from oggm import cfg, utils
 from oggm import workflow, tasks
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
+from IPython import embed
 
-cfg.initialize()
+cfg.initialize(logging_level='DEBUG')
 
 cfg.PARAMS['use_multiprocessing'] = True
-cfg.PARAMS['mp_processes'] = 2
+cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
-cfg.initialize(logging_level='DEBUG')
 
 reset=True
 print('Reset is set to ', reset)
@@ -17,7 +17,7 @@ print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-#cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
+cfg.PATHS['working_dir'] = '/home/dgoldber/network_links/geosIceOcean/dgoldber/FSM-OGGM'
 print('we are working here', cfg.PATHS['working_dir'])
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
@@ -47,6 +47,7 @@ rof = gdf[gdf['CenLat'].between(minlat, maxlat) & gdf['CenLon'].between(minlon, 
 rof = rof.sort_values('Area', ascending=False)
 
 selection = rof[rof.Name == 'Hintereisferner']
+selection = rof
 
 if reset:
     gdirs = workflow.init_glacier_directories(selection,
@@ -65,6 +66,8 @@ elevation_band_task_list = [
     tasks.gridded_attributes,
     tasks.gridded_mb_attributes,
 ]
+
+print('multiprocessing' + str(cfg.PARAMS['use_multiprocessing']))
 
 for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)

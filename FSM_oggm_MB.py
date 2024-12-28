@@ -21,6 +21,7 @@ from IPython import embed
 from functools import partial
 from progressbar import ProgressBar, Percentage, Bar
 import FSM
+from IPython import embed
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -112,7 +113,16 @@ def process_wfde5_data(gdir,
     """
     Process WFDE5 meteorological variables and put them in an FSM ready format
     per glacier directory
+
+    At the moment pooling kwarg is set to false, if there is a way to detect
+    whether the function is called with multiple gdirs, it can be enabled,
+    but for now it should not be used
     """
+
+    pooling=True
+    if (cfg.PARAMS['use_multiprocessing']):
+        pooling = False
+
     pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=300).start()
 
     output_file_name = gdir.get_filepath('climate_historical_fsm')
@@ -182,16 +192,30 @@ def process_wfde5_data(gdir,
     dtair = xr.DataArray(None, coords=coords, dims=("time",), name=tair, attrs=None)
     dwind = xr.DataArray(None, coords=coords, dims=("time",), name=wind, attrs=None)
 
-    # Only 8 nodes at the time per glacier
-    workers = 8
-    with multiprocessing.Pool(processes=workers) as pool:
-        dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
+
+    if(pooling):
+        print('no oggm multiprocessing; using pooling across variables')
+        # Only 8 nodes at the time per glacier
+        workers = 8
+        with multiprocessing.Pool(processes=workers) as pool:
+            dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
                                                                                 zip(paths,
                                                                                     ii,
                                                                                     jj)
                                                                                )
-        pool.close()
-        pool.join()
+            pool.close()
+            pool.join()
+    else:
+
+        print('oggm multiprocessing used; variables processed in serial')
+        dlw = xropen_mfdataset(paths[0],[i],[j])
+        dsurf = xropen_mfdataset(paths[1],[i],[j])
+        dqair = xropen_mfdataset(paths[2],[i],[j])
+        drainf = xropen_mfdataset(paths[3],[i],[j])
+        dsnowf = xropen_mfdataset(paths[4],[i],[j])
+        dswdown = xropen_mfdataset(paths[5],[i],[j])
+        dtair = xropen_mfdataset(paths[6],[i],[j])
+        dwind = xropen_mfdataset(paths[7],[i],[j])
 
     # Merge all variables into a single data frame
     ds = xr.merge([dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind])
