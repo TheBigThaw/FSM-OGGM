@@ -2,13 +2,13 @@ name: oggm_fsm
 channels:
   - conda-forge
 dependencies:
-  - python==3.9.2
-  - numpy==1.26.4
+  - python==3.11.0
+  - numpy
   - jupyter
   - jupyterlab
   - scipy
   - pandas
-  - shapely=2.0
+  - shapely
   - matplotlib
   - Pillow
   - netcdf4
@@ -31,6 +31,8 @@ dependencies:
   - pip 
   - setuptools==74.1.2
   - pip:
-    - tables==3.9.2
+    - meson
+    - ninja
+    - tables
     - joblib
     - progressbar2
