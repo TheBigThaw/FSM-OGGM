@@ -76,14 +76,14 @@ pytest.oggm  --disable-warnings
 
 5. If all is well you are ready to build the FSM python module with, `meson`, `ninja` and `f2py`. 
 
-**Dont forget to activate your oggm_fsm env and be inside the root FSM folder (i.e. ~/FSM-OGGM/..)**. In that root folder you will find a `meson.build` file which we will use to run the following commands on your terminal:
+**Dont forget to activate your oggm_fsm env and be inside the root FSM folder (i.e. ~/FSM-OGGM/..)**. 
 
-> **Important**: before you run things, you should say yes to any message from the commands below and for the last two commands you might need sudo permissions! For servers if you can't install this due to sudo permissions; you can run in your local machine the first command and copy to the server the `builddir` folder that gets created, then do the last two commands.
 
 ```
-meson setup builddir
-meson compile -C builddir
-meson install -C builddir
+python -m numpy.f2py FSM.f90 -m FSM -h fsm.pyf
+FC="gfortran" python -m numpy.f2py -c fsm.pyf FSM.f90 --backend meson
+python setup.py build
+python setup.py install
 ```
 
 6. Then test if FSM-OGGM library has been installed correctly by opening python and importing the FSM module.
