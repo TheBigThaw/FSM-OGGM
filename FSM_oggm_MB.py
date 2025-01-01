@@ -350,7 +350,6 @@ class FactorialSnowpackModel(MassBalanceModel):
             areas = fls[0].bin_area_m2
             if heights is None:
                 heights = fls[0].surface_h
-        embed()
         if year is not None:
             inds = np.where(self.years==year)
         else:
