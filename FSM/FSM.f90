@@ -65,6 +65,8 @@ real :: &
 ! Counters
 integer :: k          ! Elevation band counter
 
+call SET_PARAMETERS
+
 ! Default initialization of state variables
 albs(:) = 0.8
 Nsnw(:) = 0
@@ -271,6 +273,83 @@ real, parameter :: &
   zT = 2,            &! Temperature and humidity measurement height (m)
   zU = 10             ! Wind speed measurement height (m)
 end module DRIVING
+
+!-----------------------------------------------------------------------
+! FSM parameters
+!-----------------------------------------------------------------------
+module PARAMETERS
+
+! Snow parameters
+real :: &
+  asmx,              &! Maximum albedo for fresh snow
+  asmn,              &! Minimum albedo for melting snow
+  bstb,              &! Stability slope parameter
+  bthr,              &! Snow thermal conductivity exponent
+  hfsn,              &! Snow cover fraction depth scale (m)
+  rhof,              &! Fresh snow density (kg/m^3)
+  rcld,              &! Maximum density for cold snow (kg/m^3)
+  rmlt,              &! Maximum density for melting snow (kg/m^3)
+  Salb,              &! Snowfall to refresh albedo (kg/m^2)
+  tcld,              &! Cold snow albedo decay timescale (h)
+  tmlt,              &! Melting snow albedo decay timescale (h)
+  trho,              &! Snow compaction time scale (h)
+  Wirr,              &! Irreducible liquid water content of snow
+  z0sn                ! Snow surface roughness length (m)
+
+! Ice parameters
+real :: &
+  aice,              &! Ice albedo
+  z0ic                ! Ice surface roughness length (m)
+  
+! Metorology downscaling parameters
+real :: &
+  elapse,            &! Vapour pressure lapse rate (1/m)
+  Plapse,            &! Precipitation adjustment factor (1/m)
+  Tlapse              ! Temperature laspe rate (K/m)
+  
+end module PARAMETERS
+
+subroutine SET_PARAMETERS
+
+use PARAMETERS
+
+implicit none
+
+namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
+                  tmlt,trho,Wirr,z0sn,                                 &
+                  aice,z0ic,                                           &
+                  elapse,Plapse,Tlapse
+
+! Snow parameters
+  asmx = 0.85         ! Maximum albedo for fresh snow
+  asmn = 0.5          ! Minimum albedo for melting snow
+  bstb = 5            ! Stability slope parameter
+  bthr = 2            ! Snow thermal conductivity exponent
+  hfsn = 0.1          ! Snow cover fraction depth scale (m)
+  rhof = 100          ! Fresh snow density (kg/m^3)
+  rcld = 300          ! Maximum density for cold snow (kg/m^3)
+  rmlt = 500          ! Maximum density for melting snow (kg/m^3)
+  Salb = 10           ! Snowfall to refresh albedo (kg/m^2)
+  tcld = 1000         ! Cold snow albedo decay timescale (h)
+  tmlt = 100          ! Melting snow albedo decay timescale (h)
+  trho = 200          ! Snow compaction time scale (h)
+  Wirr = 0.03         ! Irreducible liquid water content of snow
+  z0sn = 0.001        ! Snow surface roughness length (m)
+
+! Ice parameters
+  aice = 0.6          ! Ice albedo
+  z0ic = 0.01         ! Ice surface roughness length (m)
+  
+! Metorology downscaling parameters
+  elapse = 0.         ! Vapour pressure lapse rate (1/m)
+  Plapse = 0.35e-3    ! Precipitation adjustment factor (1/m)
+  Tlapse = 5.7e-3     ! Temperature laspe rate (K/m)
+  
+open(8,file='nlst') 
+read(8,params)
+close(8)
+  
+end subroutine SET_PARAMETERS
 
 !-----------------------------------------------------------------------
 ! Downscale reference meteorological data to elevation band
