@@ -12,7 +12,7 @@ cfg.PARAMS['use_multiprocessing'] = False
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
-#cfg.PARAMS['FSM_param_asmx'] = .99
+cfg.PARAMS['FSM_param_asmx'] = .99
 
 FactorialSnowpackModel.create_nml()
 

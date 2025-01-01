@@ -332,15 +332,12 @@ class FactorialSnowpackModel(MassBalanceModel):
                 names.append(key[10:])
                 vals.append(params[key])
 
-        nml = {
-          'params': {
-            }
-        }
+        nml = f90nml.read('FSM/nlst')
 
         for i in range(len(names)):
             nml['params'][names[i]] = vals[i]
 
-        f90nml.write(nml,'FSM_params.nml',force=True)
+        f90nml.write(nml,'FSM/nlst',force=True)
 
     def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
 
