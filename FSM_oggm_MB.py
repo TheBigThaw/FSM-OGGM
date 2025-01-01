@@ -21,7 +21,8 @@ from IPython import embed
 from functools import partial
 from progressbar import ProgressBar, Percentage, Bar
 import FSM
-from IPython import embed
+import f90nml
+import pickle, gzip
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -245,17 +246,42 @@ class FactorialSnowpackModel(MassBalanceModel):
                  mb=0.,
                  zmin=None,
                  zmax=None,
-                 Nbnd=None):
+                 Nbnd=15,
+                 bias=0.):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in m
+
+        if 'FSM_interpolate_bnds' in cfg.PARAMS:
+            self.interp_bnds = cfg.PARAMS['FSM_interpolate_bnds']
+        else:
+            self.interp_bnds = False
+
+        if 'FSM_Nbnds' in cfg.PARAMS: 
+            Nbnd = cfg.PARAMS['FSM_Nbnds']
+
+
+        f = gzip.open(gdir.get_filepath('model_flowlines'),'rb')
+        fls = pickle.load(f)
+        if zmin==None and self.interp_bnds:
+            elev = fls[0].surface_h
+            dzbnd = elev[0]-elev[1]
+            zmin = elev[-1] - dzbnd
+            zmax = elev[0] + dzbnd
+        else:
+            Nbnd = fls[0].nx
 
         # FSM layers
         self.zmin = zmin  # Centre of lowest elevation band (m)
         self.zmax = zmax  # Centre of highest elevation band (m)
         self.Nbnd = Nbnd  # Number of elevation bands
-        self.zbnd = self.zmin + (np.arange(self.Nbnd) + 0.5) * (
+
+        if self.interp_bnds:
+            self.zbnd = self.zmin + (np.arange(self.Nbnd) + 0.5) * (
                     self.zmax - self.zmin) / self.Nbnd  # Elevations of bands (m)
+        else:
+            self.zbnd = None
+
         self.Dmin = np.array([0.1, 0.2, 0.4], 'f')  # Minimum snow layer thicknesses (m)
         self.Nsmx = len(self.Dmin)  # Maximum number of snow layers
         self.Dice = np.array([0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0, 1.0], 'f')  # Ice layer thicknesses (m)
@@ -290,15 +316,33 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.time = nc.variables['time'][:]
             self.Ntim = int(len(self.time))
             self.zref = nc.getncattr('ref_hgt')
-            self.dz = self.zbnd - self.zref
             dates = netCDF4.num2date(self.time, units=nc['time'].units, 
                     calendar=nc['time'].calendar)
             self.years = np.array([date.year for date in dates])
             self.months = np.array([date.month for date in dates])
         self._mb = mb
 
+    def create_nml():
 
-    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None):
+        params = cfg.PARAMS
+        names = []
+        vals = []
+        for key in params.keys():
+            if (key[:10] == 'FSM_param_'): 
+                names.append(key[10:])
+                vals.append(params[key])
+
+        nml = {
+          'params': {
+            }
+        }
+
+        for i in range(len(names)):
+            nml['params'][names[i]] = vals[i]
+
+        f90nml.write(nml,'FSM_params.nml',force=True)
+
+    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
 
         if fls is None:
             raise RuntimeError(f'FSM requires flow band detail')
@@ -306,11 +350,23 @@ class FactorialSnowpackModel(MassBalanceModel):
             areas = fls[0].bin_area_m2
             if heights is None:
                 heights = fls[0].surface_h
-
+        embed()
         if year is not None:
             inds = np.where(self.years==year)
         else:
             inds = np.where(self.years > -99999)
+
+        if (reset_state):
+            # FSM state variables
+            self.Tm = 273.15
+            self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
+            self.Nsnw = np.zeros(self.Nbnd, 'i')  # Number of snow layers
+            self.Tsrf = np.full(self.Nbnd, self.Tm, 'f')  # Surface temperature (K)
+            self.Dsnw = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
+            self.Sice = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
+            self.Sliq = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
+            self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
+            self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
 
         LW=self.LW[inds]
         Ps=self.Ps[inds]
@@ -323,12 +379,20 @@ class FactorialSnowpackModel(MassBalanceModel):
         time=self.time[inds]
         Ntim=int(len(time))
         Nseg=int(len(areas))
+        
+        if (self.interp_bnds):
+            dz = self.zbnd-self.zref
+            Nbnd = self.Nbnd
+        else:
+            dz = heights-self.zref
+            Nbnd = len(dz)
 
-        mb = FSM.fsmpy(self.Dice, self.Dmin, self.dz, LW, Ps,
+        mb = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
                        Qa, Rf, Sf, SW, Ta, Ua,
-                       areas, heights, self.albs, self.Dsnw, self.Nsnw, self.Sice,
-                       self.Sliq, self.Tice, self.Tsnw, self.Tsrf, self.Nbnd,
-                       self.Nice, self.Nsmx, Ntim, Nseg)
+                       areas, heights, self.albs[:Nbnd], self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd], 
+                       self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd], 
+                       self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, Ntim, Nseg)
+
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         
@@ -340,14 +404,17 @@ class FactorialSnowpackModel(MassBalanceModel):
         rho = self.rho = cfg.PARAMS['ice_density']
         mb = (mb / baseline_y) / SEC_IN_YEAR / rho
 
-        if min(heights) < self.zmin or max(heights) > self.zmax:
-            raise RuntimeError(f'The heights provided are outside of the '
+        if self.interp_bnds:
+            if min(heights) < self.zmin or max(heights) > self.zmax:
+                raise RuntimeError(f'The heights provided are outside of the '
                                    f'elevation bands for FSM')
 
-        else:
+            else:
 
-            func = interp1d(self.zbnd, mb)
-            return func (heights)
+                func = interp1d(self.zbnd, mb)
+                return func (heights)
+        else:
+            return mb
 
 
     def is_year_valid(self, year):
