@@ -144,41 +144,6 @@ close(9)
 end program FSM
 
 !-----------------------------------------------------------------------
-! FSM parameters
-!-----------------------------------------------------------------------
-module PARAMETERS
-
-! Snow parameters
-real :: &
-  asmx = 0.85,       &! Maximum albedo for fresh snow
-  asmn = 0.5,        &! Minimum albedo for melting snow
-  bstb = 5,          &! Stability slope parameter
-  bthr = 2,          &! Snow thermal conductivity exponent
-  hfsn = 0.1,        &! Snow cover fraction depth scale (m)
-  rhof = 100,        &! Fresh snow density (kg/m^3)
-  rcld = 300,        &! Maximum density for cold snow (kg/m^3)
-  rmlt = 500,        &! Maximum density for melting snow (kg/m^3)
-  Salb = 10,         &! Snowfall to refresh albedo (kg/m^2)
-  tcld = 1000,       &! Cold snow albedo decay timescale (h)
-  tmlt = 100,        &! Melting snow albedo decay timescale (h)
-  trho = 200,        &! Snow compaction time scale (h)
-  Wirr = 0.03,       &! Irreducible liquid water content of snow
-  z0sn = 0.001        ! Snow surface roughness length (m)
-
-! Ice parameters
-real :: &
-  aice = 0.6,        &! Ice albedo
-  z0ic = 0.01         ! Ice surface roughness length (m)
-
-! Metorology downscaling parameters
-real :: &
-  elapse = 0.41e-3,  &! Vapour pressure lapse rate (1/m)
-  Plapse = 0.35e-3,  &! Precipitation adjustment factor (1/m)
-  Tlapse = 5.7e-3     ! Temperature laspe rate (K/m)
-
-end module PARAMETERS
-
-!-----------------------------------------------------------------------
 ! Landing routine for calling FSM from Python
 !-----------------------------------------------------------------------
 subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,                             &
@@ -186,9 +151,6 @@ subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,                             &
                  areas, heights,                                       &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,              &
                  massb)
-
-use PARAMETERS
-
 implicit none
 integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg
 real, dimension(Nice), intent(in) :: Dice
@@ -207,13 +169,7 @@ integer :: k,n
 real, dimension(Nbnd) :: Mice,Roff,snd,SWE,SWE0
 real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
 
-namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld, &
-                  rmlt,Salb,tcld,tmlt,trho,Wirr,z0sn, &
-                  aice,z0ic,elapse,Plapse,Tlapse 
-
-open(9,file='FSM_params.nml')
-read(9,params)
-close(9)
+call SET_PARAMETERS
 
 massb = 0
 do k = 1, Nbnd
@@ -345,7 +301,7 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
   Plapse = 0.35e-3    ! Precipitation adjustment factor (1/m)
   Tlapse = 5.7e-3     ! Temperature laspe rate (K/m)
   
-open(8,file='nlst') 
+open(8,file='FSM/nlst') 
 read(8,params)
 close(8)
   

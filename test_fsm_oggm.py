@@ -8,11 +8,11 @@ from IPython import embed
 
 cfg.initialize(logging_level='DEBUG')
 
-cfg.PARAMS['use_multiprocessing'] = False
+cfg.PARAMS['use_multiprocessing'] = True
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
-cfg.PARAMS['FSM_param_asmx'] = .99
+#cfg.PARAMS['FSM_param_asmx'] = .99
 
 FactorialSnowpackModel.create_nml()
 
@@ -53,7 +53,7 @@ rof = rof.sort_values('Area', ascending=False)
 
 selection = rof[rof.Name == 'Hintereisferner']
 ds_rof = pd.read_csv('rof_ids',header=None)
-#selection = ds_rof[0].values.tolist()
+selection = ds_rof[0].values.tolist()
 
 
 if reset:
@@ -83,13 +83,10 @@ for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)
 
 
-
-#cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
+# bespoke path -- needs to be reset
 cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
-# placeholder until Dan fixes the climate preprocessing data
-# for now we just copy and paste a file
 workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 print ("DONE PROCESSING wfde5 data")
 workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel)
@@ -104,23 +101,6 @@ workflow.calibrate_inversion_from_consensus(
 )
 
 
-#for gdir in gdirs:
-# mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', zmin=zmin, zmax=zmax, Nbnd=Nbnd)
-# fls = gdir.read_pickle('inversion_flowlines')
-# mass_balance.get_annual_mb(fls=fls)
-
-# Placeholder for next inversion steps until oggm changes
-# apparent_mb_from_any_mb() task
-# tasks.apparent_mb_from_any_mb(gdir, mb_model_class=FactorialSnowpackModel)
-
-# workflow.calibrate_inversion_from_consensus(
-#    gdir,
-#    apply_fs_on_mismatch=True,
-#    error_on_mismatch=True,  # if you're running many glaciers some might not work
-#    filter_inversion_output=True,  # this partly filters the over deepening due to
-#    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
-#    volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
-#)
 
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
@@ -133,13 +113,3 @@ workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
 print('all worked')
 
 
-
-
-# mb_ts, zbnd = mbmod.get_annual_mb()
-#import matplotlib.pyplot as plt
-#mb = mb_ts / 40
-#plt.plot(zbnd, mb, 'k')
-#plt.xlim(2000, 4000)
-#plt.xlabel('Elevation (m)')
-#plt.ylabel('Annual mass balance (mm w.e.)')
-#plt.savefig(os.path.join(cfg.PATHS['working_dir'], 'test.png'))

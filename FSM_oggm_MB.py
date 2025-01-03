@@ -340,7 +340,6 @@ class FactorialSnowpackModel(MassBalanceModel):
         f90nml.write(nml,'FSM/nlst',force=True)
 
     def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
-
         if fls is None:
             raise RuntimeError(f'FSM requires flow band detail')
         else:
@@ -353,6 +352,7 @@ class FactorialSnowpackModel(MassBalanceModel):
             inds = np.where(self.years > -99999)
 
         if (reset_state):
+            print('Resetting FSM State')
             # FSM state variables
             self.Tm = 273.15
             self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
@@ -399,6 +399,7 @@ class FactorialSnowpackModel(MassBalanceModel):
 
         rho = self.rho = cfg.PARAMS['ice_density']
         mb = (mb / baseline_y) / SEC_IN_YEAR / rho
+
 
         if self.interp_bnds:
             if min(heights) < self.zmin or max(heights) > self.zmax:
