@@ -4,7 +4,6 @@ import pandas as pd
 from oggm import cfg, utils
 from oggm import workflow, tasks
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
-from IPython import embed
 
 cfg.initialize(logging_level='DEBUG')
 
@@ -14,7 +13,7 @@ cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
 #cfg.PARAMS['FSM_param_asmx'] = .99
 
-FactorialSnowpackModel.create_nml()
+FactorialSnowpackModel.create_nml(reset=True)
 
 reset=True
 print('Reset is set to ', reset)

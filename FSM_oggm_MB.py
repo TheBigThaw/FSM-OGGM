@@ -17,7 +17,6 @@ from scipy.interpolate import interp1d
 import xarray as xr
 import glob
 import re
-from IPython import embed
 from functools import partial
 from progressbar import ProgressBar, Percentage, Bar
 import FSM
@@ -322,7 +321,7 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.months = np.array([date.month for date in dates])
         self._mb = mb
 
-    def create_nml():
+    def create_nml(reset=False):
 
         params = cfg.PARAMS
         names = []
@@ -332,12 +331,15 @@ class FactorialSnowpackModel(MassBalanceModel):
                 names.append(key[10:])
                 vals.append(params[key])
 
-        nml = f90nml.read('FSM/nlst')
+        if reset:
+            nml = { 'params': {} }
+        else:
+            nml = f90nml.read('nlst')
 
         for i in range(len(names)):
             nml['params'][names[i]] = vals[i]
 
-        f90nml.write(nml,'FSM/nlst',force=True)
+        f90nml.write(nml,'nlst',force=True)
 
     def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
         if fls is None:

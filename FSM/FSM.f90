@@ -301,7 +301,7 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
   Plapse = 0.35e-3    ! Precipitation adjustment factor (1/m)
   Tlapse = 5.7e-3     ! Temperature laspe rate (K/m)
   
-open(8,file='FSM/nlst') 
+open(8,file='nlst') 
 read(8,params)
 close(8)
   
