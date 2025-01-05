@@ -45,7 +45,8 @@ dependencies:
   - salem
   - motionless
   - ipython
-  - pip 
+  - pip
+  - f90nml
   - pip:
     - meson
     - ninja
