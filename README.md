@@ -11,7 +11,7 @@ This is a "draft" repository to build a mass balance class, which couples [The F
 git clone https://github.com/bearecinos/FSM-OGGM.git
 ```
 
-2. Build a python environment compatible with `f2py`. For this, install an environment according to the following yml. `meson` and `ninja` are important to make the fortran `builddir`
+2. Build a python environment compatible with `f2py`. For this, install an environment according to the following yml. `meson` and `ninja` are important to compile the fortran executable.
 
 ```
 name: oggm_fsm
@@ -45,7 +45,8 @@ dependencies:
   - salem
   - motionless
   - ipython
-  - pip 
+  - f90nml
+  - pip
   - pip:
     - meson
     - ninja
@@ -74,17 +75,9 @@ mamba activate oggm_fsm
 pytest.oggm  --disable-warnings
 ```
 
-5. If all is well you are ready to build the FSM python module with, `meson`, `ninja` and `f2py`. 
+5. If all is well you are ready to build the FSM python module with, `meson`, `ninja` and `f2py`. You will also require a gfortran compiler (other versions such as intel fortran may work but have not been tested).
 
-**Dont forget to activate your oggm_fsm env and be inside the root FSM folder (i.e. ~/FSM-OGGM/..)**. 
-
-
-```
-python -m numpy.f2py FSM.f90 -m FSM -h fsm.pyf
-FC="gfortran" python -m numpy.f2py -c fsm.pyf FSM.f90 --backend meson
-python setup.py build
-python setup.py install
-```
+**Dont forget to activate your oggm_fsm env and be inside FSM-OGGM/FSM folder**. Then run `bash compil.sh`.
 
 6. Then test if FSM-OGGM library has been installed correctly by opening python and importing the FSM module.
 ```

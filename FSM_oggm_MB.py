@@ -17,10 +17,11 @@ from scipy.interpolate import interp1d
 import xarray as xr
 import glob
 import re
-from IPython import embed
 from functools import partial
 from progressbar import ProgressBar, Percentage, Bar
 import FSM
+import f90nml
+import pickle, gzip
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -112,7 +113,16 @@ def process_wfde5_data(gdir,
     """
     Process WFDE5 meteorological variables and put them in an FSM ready format
     per glacier directory
+
+    At the moment pooling kwarg is set to false, if there is a way to detect
+    whether the function is called with multiple gdirs, it can be enabled,
+    but for now it should not be used
     """
+
+    pooling=True
+    if (cfg.PARAMS['use_multiprocessing']):
+        pooling = False
+
     pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=300).start()
 
     output_file_name = gdir.get_filepath('climate_historical_fsm')
@@ -127,13 +137,19 @@ def process_wfde5_data(gdir,
     if y1 is None:
         y1 = '2019'
 
-    # nearest point on global 0.5 degree grid
-    i = round(2 * (179.75 + lon))
-    j = round(2 * (89.750 + lat))
 
     # location and height of reference pixel
     fpath = os.path.join(cfg.PATHS['climate_file'], 'ASurf_WFDE5_CRU_v2.0.nc')
     df = xr.open_dataset(fpath)
+
+    lonminWfde5 = df['lon'][0].values
+    latminWfde5 = df['lat'][0].values
+
+    # nearest point on global 0.5 degree grid
+    # NOTE i have written so it can be a clipped file or global
+    i = round(2 * (lon-lonminWfde5))
+    j = round(2 * (lat-latminWfde5))
+
     ref_pix_lat = df['lat'][j].values
     ref_pix_lon = df['lon'][i].values
     ref_hgt = df['ASurf'][j, i].values
@@ -176,16 +192,30 @@ def process_wfde5_data(gdir,
     dtair = xr.DataArray(None, coords=coords, dims=("time",), name=tair, attrs=None)
     dwind = xr.DataArray(None, coords=coords, dims=("time",), name=wind, attrs=None)
 
-    # Only 8 nodes at the time per glacier
-    workers = 8
-    with multiprocessing.Pool(processes=workers) as pool:
-        dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
+
+    if(pooling):
+        print('no oggm multiprocessing; using pooling across variables')
+        # Only 8 nodes at the time per glacier
+        workers = 8
+        with multiprocessing.Pool(processes=workers) as pool:
+            dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind = pool.starmap(xropen_mfdataset,
                                                                                 zip(paths,
                                                                                     ii,
                                                                                     jj)
                                                                                )
-        pool.close()
-        pool.join()
+            pool.close()
+            pool.join()
+    else:
+
+        print('oggm multiprocessing used; variables processed in serial')
+        dlw = xropen_mfdataset(paths[0],[i],[j])
+        dsurf = xropen_mfdataset(paths[1],[i],[j])
+        dqair = xropen_mfdataset(paths[2],[i],[j])
+        drainf = xropen_mfdataset(paths[3],[i],[j])
+        dsnowf = xropen_mfdataset(paths[4],[i],[j])
+        dswdown = xropen_mfdataset(paths[5],[i],[j])
+        dtair = xropen_mfdataset(paths[6],[i],[j])
+        dwind = xropen_mfdataset(paths[7],[i],[j])
 
     # Merge all variables into a single data frame
     ds = xr.merge([dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind])
@@ -215,17 +245,42 @@ class FactorialSnowpackModel(MassBalanceModel):
                  mb=0.,
                  zmin=None,
                  zmax=None,
-                 Nbnd=None):
+                 Nbnd=15,
+                 bias=0.):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in m
+
+        if 'FSM_interpolate_bnds' in cfg.PARAMS:
+            self.interp_bnds = cfg.PARAMS['FSM_interpolate_bnds']
+        else:
+            self.interp_bnds = False
+
+        if 'FSM_Nbnds' in cfg.PARAMS: 
+            Nbnd = cfg.PARAMS['FSM_Nbnds']
+
+
+        f = gzip.open(gdir.get_filepath('model_flowlines'),'rb')
+        fls = pickle.load(f)
+        if zmin==None and self.interp_bnds:
+            elev = fls[0].surface_h
+            dzbnd = elev[0]-elev[1]
+            zmin = elev[-1] - dzbnd
+            zmax = elev[0] + dzbnd
+        else:
+            Nbnd = fls[0].nx
 
         # FSM layers
         self.zmin = zmin  # Centre of lowest elevation band (m)
         self.zmax = zmax  # Centre of highest elevation band (m)
         self.Nbnd = Nbnd  # Number of elevation bands
-        self.zbnd = self.zmin + (np.arange(self.Nbnd) + 0.5) * (
+
+        if self.interp_bnds:
+            self.zbnd = self.zmin + (np.arange(self.Nbnd) + 0.5) * (
                     self.zmax - self.zmin) / self.Nbnd  # Elevations of bands (m)
+        else:
+            self.zbnd = None
+
         self.Dmin = np.array([0.1, 0.2, 0.4], 'f')  # Minimum snow layer thicknesses (m)
         self.Nsmx = len(self.Dmin)  # Maximum number of snow layers
         self.Dice = np.array([0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0, 1.0], 'f')  # Ice layer thicknesses (m)
@@ -260,27 +315,56 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.time = nc.variables['time'][:]
             self.Ntim = int(len(self.time))
             self.zref = nc.getncattr('ref_hgt')
-            self.dz = self.zbnd - self.zref
             dates = netCDF4.num2date(self.time, units=nc['time'].units, 
                     calendar=nc['time'].calendar)
             self.years = np.array([date.year for date in dates])
             self.months = np.array([date.month for date in dates])
         self._mb = mb
 
+    def create_nml(reset=False):
 
-    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None):
+        params = cfg.PARAMS
+        names = []
+        vals = []
+        for key in params.keys():
+            if (key[:10] == 'FSM_param_'): 
+                names.append(key[10:])
+                vals.append(params[key])
 
+        if reset:
+            nml = { 'params': {} }
+        else:
+            nml = f90nml.read('nlst')
+
+        for i in range(len(names)):
+            nml['params'][names[i]] = vals[i]
+
+        f90nml.write(nml,'nlst',force=True)
+
+    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
         if fls is None:
             raise RuntimeError(f'FSM requires flow band detail')
         else:
             areas = fls[0].bin_area_m2
             if heights is None:
                 heights = fls[0].surface_h
-
         if year is not None:
             inds = np.where(self.years==year)
         else:
             inds = np.where(self.years > -99999)
+
+        if (reset_state):
+            print('Resetting FSM State')
+            # FSM state variables
+            self.Tm = 273.15
+            self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
+            self.Nsnw = np.zeros(self.Nbnd, 'i')  # Number of snow layers
+            self.Tsrf = np.full(self.Nbnd, self.Tm, 'f')  # Surface temperature (K)
+            self.Dsnw = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
+            self.Sice = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
+            self.Sliq = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
+            self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
+            self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
 
         LW=self.LW[inds]
         Ps=self.Ps[inds]
@@ -293,12 +377,20 @@ class FactorialSnowpackModel(MassBalanceModel):
         time=self.time[inds]
         Ntim=int(len(time))
         Nseg=int(len(areas))
+        
+        if (self.interp_bnds):
+            dz = self.zbnd-self.zref
+            Nbnd = self.Nbnd
+        else:
+            dz = heights-self.zref
+            Nbnd = len(dz)
 
-        mb = FSM.fsmpy(self.Dice, self.Dmin, self.dz, LW, Ps,
+        mb = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
                        Qa, Rf, Sf, SW, Ta, Ua,
-                       areas, heights, self.albs, self.Dsnw, self.Nsnw, self.Sice,
-                       self.Sliq, self.Tice, self.Tsnw, self.Tsrf, self.Nbnd,
-                       self.Nice, self.Nsmx, Ntim, Nseg)
+                       areas, heights, self.albs[:Nbnd], self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd], 
+                       self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd], 
+                       self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, Ntim, Nseg)
+
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         
@@ -310,14 +402,18 @@ class FactorialSnowpackModel(MassBalanceModel):
         rho = self.rho = cfg.PARAMS['ice_density']
         mb = (mb / baseline_y) / SEC_IN_YEAR / rho
 
-        if min(heights) < self.zmin or max(heights) > self.zmax:
-            raise RuntimeError(f'The heights provided are outside of the '
+
+        if self.interp_bnds:
+            if min(heights) < self.zmin or max(heights) > self.zmax:
+                raise RuntimeError(f'The heights provided are outside of the '
                                    f'elevation bands for FSM')
 
-        else:
+            else:
 
-            func = interp1d(self.zbnd, mb)
-            return func (heights)
+                func = interp1d(self.zbnd, mb)
+                return func (heights)
+        else:
+            return mb
 
 
     def is_year_valid(self, year):

@@ -27,6 +27,7 @@ dependencies:
   - seaborn
   - salem
   - motionless
+  - f90nml
   - ipython
   - pip 
   - pip:

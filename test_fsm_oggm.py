@@ -1,24 +1,37 @@
 import numpy as np
 import geopandas as gpd
+import pandas as pd
 from oggm import cfg, utils
 from oggm import workflow, tasks
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
 
-cfg.initialize()
-
-cfg.PARAMS['use_multiprocessing'] = True
-cfg.PARAMS['mp_processes'] = 2
-cfg.PARAMS['border'] = 80
 cfg.initialize(logging_level='DEBUG')
 
-reset=False
+# if multiprocessing is set to True, then 
+# pooling will not be used for WFDE5 data
+cfg.PARAMS['use_multiprocessing'] = True
+cfg.PARAMS['mp_processes'] = 24
+cfg.PARAMS['border'] = 80
+cfg.PARAMS['FSM_interpolate_bnds'] = False
+#cfg.PARAMS['FSM_param_asmx'] = .99
+
+FactorialSnowpackModel.create_nml(reset=True)
+
+reset=True
 print('Reset is set to ', reset)
 print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
+# this sets a temporary working directory. if you want to use a permanent
+# directory then uncomment and adapt the following line.
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-#cfg.PATHS['working_dir'] = '/home/dgoldber/ice_models/oggm'
+#cfg.PATHS['working_dir'] = '/home/username/working_dir'
 print('we are working here', cfg.PATHS['working_dir'])
+
+# bespoke path -- needs to be reset
+cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
+cfg.PARAMS['baseline_climate'] = 'CUSTOM'
+
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
 cfg.PARAMS['use_tar_shapefiles'] = True
@@ -47,6 +60,12 @@ rof = gdf[gdf['CenLat'].between(minlat, maxlat) & gdf['CenLon'].between(minlon, 
 rof = rof.sort_values('Area', ascending=False)
 
 selection = rof[rof.Name == 'Hintereisferner']
+ds_rof = pd.read_csv('rof_ids',header=None)
+
+# By default only Hintereisferner is modeled.
+# To model all values in the attached list uncomment below.
+#selection = ds_rof[0].values.tolist()
+
 
 if reset:
     gdirs = workflow.init_glacier_directories(selection,
@@ -55,6 +74,8 @@ if reset:
                                               reset=reset)
 else:
     gdirs = workflow.init_glacier_directories(selection)
+
+
 
 elevation_band_task_list = [
     tasks.simple_glacier_masks,
@@ -66,48 +87,37 @@ elevation_band_task_list = [
     tasks.gridded_mb_attributes,
 ]
 
+
+print('multiprocessing' + str(cfg.PARAMS['use_multiprocessing']))
+
 for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)
 
-cfg.PATHS['climate_file'] = '/exports/csce/datastore/geos/groups/boreal/WFDE5/'
-cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
-# placeholder until Dan fixes the climate preprocessing data
-# for now we just copy and paste a file
-#workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
-#print ("DONE PROCESSING wfde5 data")
 
-gdir = gdirs[0]
-
-mass_balance = FactorialSnowpackModel(gdir, filename='climate_historical_fsm', zmin=zmin, zmax=zmax, Nbnd=Nbnd)
-fls = gdir.read_pickle('inversion_flowlines')
-mass_balance.get_annual_mb(fls=fls)
-
-# Placeholder for next inversion steps until oggm changes
-# apparent_mb_from_any_mb() task
-tasks.apparent_mb_from_any_mb(gdir, mb_model=mass_balance, mb_years=np.unique(mass_balance.years))
+workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
+print ("DONE PROCESSING wfde5 data")
+workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel)
 
 workflow.calibrate_inversion_from_consensus(
     gdirs,
     apply_fs_on_mismatch=True,
     error_on_mismatch=True,  # if you're running many glaciers some might not work
     filter_inversion_output=True,  # this partly filters the over deepening due to
-    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
+#    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
     volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
 )
 
+
+
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
+
+workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
+                             climate_filename='climate_historical_fsm',
+                             ys=1981, ye=2019,
+                             mb_model_class=FactorialSnowpackModel)
+
 print('all worked')
 
 
-
-
-# mb_ts, zbnd = mbmod.get_annual_mb()
-#import matplotlib.pyplot as plt
-#mb = mb_ts / 40
-#plt.plot(zbnd, mb, 'k')
-#plt.xlim(2000, 4000)
-#plt.xlabel('Elevation (m)')
-#plt.ylabel('Annual mass balance (mm w.e.)')
-#plt.savefig(os.path.join(cfg.PATHS['working_dir'], 'test.png'))
