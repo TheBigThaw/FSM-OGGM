@@ -7,6 +7,8 @@ from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
 
 cfg.initialize(logging_level='DEBUG')
 
+# if multiprocessing is set to True, then 
+# pooling will not be used for WFDE5 data
 cfg.PARAMS['use_multiprocessing'] = True
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
@@ -20,9 +22,16 @@ print('Reset is set to ', reset)
 print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
+# this sets a temporary working directory. if you want to use a permanent
+# directory then uncomment and adapt the following line.
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-cfg.PATHS['working_dir'] = '/home/dgoldber/network_links/geosIceOcean/dgoldber/FSM-OGGM'
+#cfg.PATHS['working_dir'] = '/home/username/working_dir'
 print('we are working here', cfg.PATHS['working_dir'])
+
+# bespoke path -- needs to be reset
+cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
+cfg.PARAMS['baseline_climate'] = 'CUSTOM'
+
 cfg.PARAMS['continue_on_error'] = True
 cfg.PARAMS['use_compression'] = True
 cfg.PARAMS['use_tar_shapefiles'] = True
@@ -52,7 +61,10 @@ rof = rof.sort_values('Area', ascending=False)
 
 selection = rof[rof.Name == 'Hintereisferner']
 ds_rof = pd.read_csv('rof_ids',header=None)
-selection = ds_rof[0].values.tolist()
+
+# By default only Hintereisferner is modeled.
+# To model all values in the attached list uncomment below.
+#selection = ds_rof[0].values.tolist()
 
 
 if reset:
@@ -82,9 +94,6 @@ for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)
 
 
-# bespoke path -- needs to be reset
-cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
-cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
 workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 print ("DONE PROCESSING wfde5 data")
