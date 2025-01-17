@@ -321,6 +321,20 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.months = np.array([date.month for date in dates])
         self._mb = mb
 
+    def reset_state(self):
+        
+        # resets initial state of FSM to either constant values, or
+        # values specific to the glacier
+        self.Tm = 273.15
+        self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
+        self.Nsnw = np.zeros(self.Nbnd, 'i')  # Number of snow layers
+        self.Tsrf = np.full(self.Nbnd, self.Tm, 'f')  # Surface temperature (K)
+        self.Dsnw = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
+        self.Sice = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
+        self.Sliq = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
+        self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
+        self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
+
     def create_nml(reset=False):
 
         params = cfg.PARAMS
@@ -352,19 +366,6 @@ class FactorialSnowpackModel(MassBalanceModel):
             inds = np.where(self.years==year)
         else:
             inds = np.where(self.years > -99999)
-
-        if (reset_state):
-            print('Resetting FSM State')
-            # FSM state variables
-            self.Tm = 273.15
-            self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
-            self.Nsnw = np.zeros(self.Nbnd, 'i')  # Number of snow layers
-            self.Tsrf = np.full(self.Nbnd, self.Tm, 'f')  # Surface temperature (K)
-            self.Dsnw = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
-            self.Sice = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
-            self.Sliq = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
-            self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
-            self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
 
         LW=self.LW[inds]
         Ps=self.Ps[inds]

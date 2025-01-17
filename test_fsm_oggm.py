@@ -97,7 +97,7 @@ for task in elevation_band_task_list:
 
 workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 print ("DONE PROCESSING wfde5 data")
-workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel)
+workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel, reset_state=True)
 
 workflow.calibrate_inversion_from_consensus(
     gdirs,
