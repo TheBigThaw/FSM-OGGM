@@ -146,13 +146,15 @@ end program FSM
 !-----------------------------------------------------------------------
 ! Landing routine for calling FSM from Python
 !-----------------------------------------------------------------------
-subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,                             &
+subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
                  areas, heights,                                       &
-                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,              &
+                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,RoffGl,       &
                  massb)
 implicit none
 integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg
+integer, intent(in) :: Nroff                         ! number of runoff records
+                                                     ! should be ntim / (# of time steps in roff freq)
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
@@ -164,14 +166,17 @@ real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
 real, dimension(Nsmx,Nbnd), intent(inout) :: Dsnw,Sice,Sliq,Tsnw
 real, dimension(Nice,Nbnd), intent(inout) :: Tice
+real, dimension(Nroff), intent(inout) :: RoffGl
 real, dimension(Nbnd), intent(out) :: massb
-integer :: k,n
+integer :: k,n,n_roff
 real, dimension(Nbnd) :: Mice,Roff,snd,SWE,SWE0
 real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
 
 call SET_PARAMETERS
 
 massb = 0
+RoffGl(:) = 0
+n_roff = Ntim / Nroff
 do k = 1, Nbnd
   SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
 end do
@@ -184,8 +189,11 @@ do n = 1, Ntim
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
                       Mice(k),Roff(k),snd(k),SWE(k)                    )
+    
+    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + Roff(k) * areas(k)
   end do
   massb = massb - Mice
+  
 end do
 massb = massb + SWE - SWE0
 

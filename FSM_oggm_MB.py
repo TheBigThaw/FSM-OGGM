@@ -22,6 +22,7 @@ from progressbar import ProgressBar, Percentage, Bar
 import FSM
 import f90nml
 import pickle, gzip
+from IPython import embed
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -385,15 +386,15 @@ class FactorialSnowpackModel(MassBalanceModel):
             dz = heights-self.zref
             Nbnd = len(dz)
 
+        Nroff = 1
+        RoffGl = np.zeros(Nroff, 'f', order='F')
         mb = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
                        Qa, Rf, Sf, SW, Ta, Ua,
                        areas, heights, self.albs[:Nbnd], self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd], 
                        self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd], 
-                       self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, Ntim, Nseg)
-
+                       self.Tsrf[:Nbnd], RoffGl, Nbnd,self.Nice, self.Nsmx, Ntim, Nseg, Nroff)
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
-        
         if year is None:
             baseline_y = np.max(self.years) - np.min(self.years) + 1
         else:
