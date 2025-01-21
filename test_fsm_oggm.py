@@ -9,7 +9,7 @@ cfg.initialize(logging_level='DEBUG')
 
 # if multiprocessing is set to True, then 
 # pooling will not be used for WFDE5 data
-cfg.PARAMS['use_multiprocessing'] = True
+cfg.PARAMS['use_multiprocessing'] = False
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
