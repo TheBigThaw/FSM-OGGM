@@ -149,8 +149,8 @@ end program FSM
 subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
                  areas, heights,                                       &
-                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,RoffGl,       &
-                 massb)
+                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
+                 RoffGl)
 implicit none
 integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg
 integer, intent(in) :: Nroff                         ! number of runoff records
@@ -166,8 +166,8 @@ real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
 real, dimension(Nsmx,Nbnd), intent(inout) :: Dsnw,Sice,Sliq,Tsnw
 real, dimension(Nice,Nbnd), intent(inout) :: Tice
-real, dimension(Nroff), intent(inout) :: RoffGl
 real, dimension(Nbnd), intent(out) :: massb
+real, dimension(Nroff), intent(out) :: RoffGl
 integer :: k,n,n_roff
 real, dimension(Nbnd) :: Mice,Roff,snd,SWE,SWE0
 real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
