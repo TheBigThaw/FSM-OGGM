@@ -2,6 +2,7 @@ import numpy as np
 import geopandas as gpd
 import pandas as pd
 from oggm import cfg, utils
+from IPython import embed
 from oggm import workflow, tasks
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
 
@@ -9,7 +10,7 @@ cfg.initialize(logging_level='DEBUG')
 
 # if multiprocessing is set to True, then 
 # pooling will not be used for WFDE5 data
-cfg.PARAMS['use_multiprocessing'] = True
+cfg.PARAMS['use_multiprocessing'] = False
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
@@ -17,15 +18,15 @@ cfg.PARAMS['FSM_interpolate_bnds'] = False
 
 FactorialSnowpackModel.create_nml(reset=True)
 
-reset=True
+reset=False
 print('Reset is set to ', reset)
 print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
 
 # this sets a temporary working directory. if you want to use a permanent
 # directory then uncomment and adapt the following line.
-cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-#cfg.PATHS['working_dir'] = '/home/username/working_dir'
+#cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
+cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
 print('we are working here', cfg.PATHS['working_dir'])
 
 # bespoke path -- needs to be reset
@@ -94,10 +95,9 @@ for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)
 
 
-
-workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
+#workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 print ("DONE PROCESSING wfde5 data")
-workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel)
+workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel, reset_state=True)
 
 workflow.calibrate_inversion_from_consensus(
     gdirs,
