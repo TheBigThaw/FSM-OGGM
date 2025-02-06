@@ -441,9 +441,6 @@ class FactorialSnowpackModel(MassBalanceModel):
         else:
             Nseg = len(heights)
 
-        heights = heights[:Nseg]
-        areas = areas[:Nseg]
-
         if year is not None:
             inds = np.where(self.years==year)
         else:
@@ -464,15 +461,15 @@ class FactorialSnowpackModel(MassBalanceModel):
             dz = self.zbnd-self.zref
             Nbnd = self.Nbnd
         else:
-            dz = heights-self.zref
-            Nbnd = len(dz)
+            dz = heights[:Nseg]-self.zref
+            Nbnd = Nseg
 
         if Nbnd>0:
-            mb[:Nbnd] = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
+            mbloc = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
                                   Qa, Rf, Sf, SW, Ta, Ua,
-                                  areas, heights, self.albs[:Nbnd], 
+                                  areas[:Nseg], heights[:Nseg], self.albs[:Nbnd],
                                   self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd],
-                                  self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], 
+                                  self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd],
                                   self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd],
                                   self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, Ntim, Nseg)
 
@@ -484,7 +481,7 @@ class FactorialSnowpackModel(MassBalanceModel):
             baseline_y = 1
 
         rho = self.rho = cfg.PARAMS['ice_density']
-        mb = (mb / baseline_y) / SEC_IN_YEAR / rho
+        mbloc = (mbloc / baseline_y) / SEC_IN_YEAR / rho
 
 
         if self.interp_bnds:
@@ -494,10 +491,12 @@ class FactorialSnowpackModel(MassBalanceModel):
 
             else:
 
-                func = interp1d(self.zbnd, mb)
-                return func (heights)
+                func = interp1d(self.zbnd, mbloc)
+                mb = func (heights)
         else:
-            return mb
+            mb[:Nbnd] = mbloc
+
+        return mb
 
 
     def is_year_valid(self, year):
