@@ -472,6 +472,9 @@ class FactorialSnowpackModel(MassBalanceModel):
                                   self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd],
                                   self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd],
                                   self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, Ntim, Nseg)
+        else:
+            # this is to address the case where the entire glacier has retreated
+            mbloc = np.empty(0)
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         
