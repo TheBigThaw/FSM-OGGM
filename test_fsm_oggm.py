@@ -19,6 +19,27 @@ cfg.PARAMS['FSM_save_runoff'] = False
 cfg.PARAMS['FSM_runoff_frequency'] = 'D'
 #cfg.PARAMS['FSM_param_asmx'] = .99
 
+# the following if True means FSM will be run with a fixed # of columns
+# independent on the number of glacier sectoins/elev bands. These
+# will be spaced evenly over the elev range (which will include the 
+# downstream region - so im not sure it is a good idea to use at all). 
+# The number of columns/bands can be set in 
+# the FactorialSnowpackModel constructor as a kwarg, or through the 
+# cfg.PARAMS['FSM_Nbnds'] parameter (kwarg overwrites global param)
+# or has a default of 15
+cfg.PARAMS['FSM_interpolate_bnds'] = False
+cfg.PARAMS['FSM_Nbnds'] = 15
+
+# if True, this will run FSM for one year when FactorialSnowpackModel is 
+# initiated, and the results will be the saved "initial state"
+cfg.PARAMS['FSM_spinup'] = True
+
+# Here is how an FSM parameter (asmx) is set. this will create a 
+# namelist entry with the value equal to the default
+cfg.PARAMS['FSM_param_asmx'] = .85
+
+# this is necessary to create a nlst file in the present directory, which is the
+# one FSM will read. would be good to enable to pass a path to the namelist to FSM
 FactorialSnowpackModel.create_nml(reset=True)
 
 reset=False
