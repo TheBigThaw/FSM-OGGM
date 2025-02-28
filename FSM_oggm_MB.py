@@ -250,7 +250,10 @@ class FactorialSnowpackModel(MassBalanceModel):
                  bias=0.):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
-        self.valid_bounds = [-2e4, 2e4]  # in m
+        self.valid_bounds = [-2e4, 2e4]  # in ma
+        self.spinup = False
+        if 'FSM_spinup' in cfg.PARAMS:
+            self.spinup = cfg.PARAMS['FSM_spinup']
 
         if 'FSM_interpolate_bnds' in cfg.PARAMS:
             self.interp_bnds = cfg.PARAMS['FSM_interpolate_bnds']
@@ -321,6 +324,80 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.years = np.array([date.year for date in dates])
             self.months = np.array([date.month for date in dates])
         self._mb = mb
+        self.ys = min(self.years)
+        self.ye = max(self.years)
+
+        if (self.spinup):
+
+            if self.interp_bnds:
+                self.spinup_state()
+            else:
+                self.spinup_state(fls=fls)
+
+    def spinup_state(self, fls=None):
+
+        # spinup required as we are starting from mid-winter,
+        # meaning if we begin with snow-free depth then this will
+        # cause the entire year to be inaccurate as the snowpack
+        # will build up at the wrong time, affecting ice temperature
+        # as well. We run with the first year and either initial
+        # geometry or the imposed elevation bands and save the state
+
+        if self.interp_bnds:
+            self.get_annual_mb(year=self.ys)
+        else:
+            self.get_annual_mb(year=self.ys, fls=fls)
+
+
+        # the arrays to hold the spun up state are initialised exactly 
+        # as the state arrays in order to ensure fortran compatibility.
+        # using .copy() does not seem to achieve this.
+        self.Tm_spinup = self.Tm
+        self.albs_spinup= np.full(self.Nbnd, 0., 'f')  # Snow albedo
+        self.Nsnw_spinup = np.zeros(self.Nbnd, 'i')  # Number of snow layers
+        self.Tsrf_spinup = np.full(self.Nbnd, 0., 'f')  # Surface temperature (K)
+        self.Dsnw_spinup = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
+        self.Sice_spinup = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
+        self.Sliq_spinup = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
+        self.Tice_spinup = np.full((self.Nice, self.Nbnd), 0., 'f', order='F')  # Ice layer temperatures (K)
+        self.Tsnw_spinup = np.full((self.Nsmx, self.Nbnd), 0., 'f', order='F')  # Snow layer temperatures (K)
+
+        # values initialised in this way to avoid using .copy()
+        self.albs_spinup[:] = self.albs[:]
+        self.Nsnw_spinup[:] = self.Nsnw[:]
+        self.Tsrf_spinup[:] = self.Tsrf[:]
+        self.Dsnw_spinup[:] = self.Dsnw[:]
+        self.Sice_spinup[:] = self.Sice[:]
+        self.Sliq_spinup[:] = self.Sliq[:]
+        self.Tice_spinup[:] = self.Tice[:]
+        self.Tsnw_spinup[:] = self.Tsnw[:]
+
+
+    def reset_state(self):
+        
+        # resets initial state of FSM to either constant values, or
+        # values specific to the glacier
+        if self.spinup:
+            self.Tm = self.Tm_spinup
+            # values set as in spinup() to avoid .copy()
+            self.albs[:] = self.albs_spinup[:]
+            self.Nsnw[:] = self.Nsnw_spinup[:]
+            self.Tsrf[:] = self.Tsrf_spinup[:]
+            self.Dsnw[:] = self.Dsnw_spinup[:]
+            self.Sice[:] = self.Sice_spinup[:]
+            self.Sliq[:] = self.Sliq_spinup[:]
+            self.Tice[:] = self.Tice_spinup[:]
+            self.Tsnw[:] = self.Tsnw_spinup[:]
+        else:
+            self.Tm = 273.15
+            self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
+            self.Nsnw = np.zeros(self.Nbnd, 'i')  # Number of snow layers
+            self.Tsrf = np.full(self.Nbnd, self.Tm, 'f')  # Surface temperature (K)
+            self.Dsnw = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
+            self.Sice = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
+            self.Sliq = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
+            self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
+            self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
 
     def create_nml(reset=False):
 
@@ -343,29 +420,32 @@ class FactorialSnowpackModel(MassBalanceModel):
         f90nml.write(nml,'nlst',force=True)
 
     def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
+
+        # return annual mass balance either at prescribed elev bands or within segments
+        # of a flowline model. If the latter, returns zero past the terminus
+
         if fls is None:
             raise RuntimeError(f'FSM requires flow band detail')
+        
+        areas = fls[0].bin_area_m2
+
+        if heights is None:
+            heights = fls[0].surface_h
+
+        mb = np.zeros(np.shape(heights))
+
+        if hasattr(fls[0],'bed_h'):
+            # if this is a flowline model, it could have non-ice covered area
+            # limit the FSM columns only to where there is ice. Here, we model
+            # to the lowest/last ice filled segment, mb past this point is zero
+            Nseg = len(np.where((heights-fls[0].bed_h) > 1e-4)[0])
         else:
-            areas = fls[0].bin_area_m2
-            if heights is None:
-                heights = fls[0].surface_h
+            Nseg = len(heights)
+
         if year is not None:
             inds = np.where(self.years==year)
         else:
             inds = np.where(self.years > -99999)
-
-        if (reset_state):
-            print('Resetting FSM State')
-            # FSM state variables
-            self.Tm = 273.15
-            self.albs = np.full(self.Nbnd, 0.8, 'f')  # Snow albedo
-            self.Nsnw = np.zeros(self.Nbnd, 'i')  # Number of snow layers
-            self.Tsrf = np.full(self.Nbnd, self.Tm, 'f')  # Surface temperature (K)
-            self.Dsnw = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Snow layer thicknesses (m)
-            self.Sice = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Ice content of snow layers (kg/m^2)
-            self.Sliq = np.zeros((self.Nsmx, self.Nbnd), 'f', order='F')  # Liquid content of snow layers (kg/m^2)
-            self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
-            self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
 
         LW=self.LW[inds]
         Ps=self.Ps[inds]
@@ -377,23 +457,28 @@ class FactorialSnowpackModel(MassBalanceModel):
         Ua=self.Ua[inds]
         time=self.time[inds]
         Ntim=int(len(time))
-        Nseg=int(len(areas))
-        
+
         if (self.interp_bnds):
             dz = self.zbnd-self.zref
             Nbnd = self.Nbnd
         else:
-            dz = heights-self.zref
-            Nbnd = len(dz)
+            dz = heights[:Nseg]-self.zref
+            Nbnd = Nseg
 
         Nroff = 1
-        RoffGl = np.zeros(Nroff, 'f', order='F')
-        mb, roff = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
+        if Nbnd>0:
+            mb, roff = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
                        Qa, Rf, Sf, SW, Ta, Ua,
-                       areas, heights, self.albs[:Nbnd], self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd], 
-                       self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd], 
-                       self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, Ntim, Nseg, Nroff)
-        embed()
+                       areas, heights, self.albs[:Nbnd], 
+                       self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd],
+                       self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], 
+                       self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd],
+                       self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, 
+                       Ntim, Nseg, Nroff)
+
+        else:
+            # this is to address the case where the entire glacier has retreated
+            mbloc = np.empty(0)
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         if year is None:
@@ -402,7 +487,7 @@ class FactorialSnowpackModel(MassBalanceModel):
             baseline_y = 1
 
         rho = self.rho = cfg.PARAMS['ice_density']
-        mb = (mb / baseline_y) / SEC_IN_YEAR / rho
+        mbloc = (mbloc / baseline_y) / SEC_IN_YEAR / rho
 
 
         if self.interp_bnds:
@@ -412,10 +497,12 @@ class FactorialSnowpackModel(MassBalanceModel):
 
             else:
 
-                func = interp1d(self.zbnd, mb)
-                return func (heights)
+                func = interp1d(self.zbnd, mbloc)
+                mb = func (heights)
         else:
-            return mb
+            mb[:Nbnd] = mbloc
+
+        return mb
 
 
     def is_year_valid(self, year):
