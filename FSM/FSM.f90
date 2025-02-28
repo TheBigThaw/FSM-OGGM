@@ -152,8 +152,8 @@ subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
                  RoffGl)
 implicit none
-integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg
-integer, intent(in) :: Nroff                         ! number of runoff records
+integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
+                                                     ! Nroff: number of runoff records
                                                      ! should be ntim / (# of time steps in roff freq)
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
