@@ -467,7 +467,7 @@ class FactorialSnowpackModel(MassBalanceModel):
 
         Nroff = 1
         if Nbnd>0:
-            mb, roff = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
+            mbloc, roff = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
                        Qa, Rf, Sf, SW, Ta, Ua,
                        areas, heights, self.albs[:Nbnd], 
                        self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd],
@@ -479,6 +479,7 @@ class FactorialSnowpackModel(MassBalanceModel):
         else:
             # this is to address the case where the entire glacier has retreated
             mbloc = np.empty(0)
+            roff = np.zeros(Nroff)
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         if year is None:
@@ -502,7 +503,7 @@ class FactorialSnowpackModel(MassBalanceModel):
         else:
             mb[:Nbnd] = mbloc
 
-        return mb
+        return mb, roff
 
 
     def is_year_valid(self, year):
