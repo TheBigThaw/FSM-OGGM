@@ -237,6 +237,79 @@ def process_wfde5_data(gdir,
 
     pbar.finish()
 
+@entity_task(log)
+def fsm_flowline_model_run(gdir, ys=None, ye=None,
+                          fixed_geometry_spinup_yr=None,
+                          store_monthly_step=False,
+                          store_model_geometry=None,
+                          store_fl_diagnostics=None,
+                          climate_filename='climate_historical_fsm',
+                          mb_model=None,
+                          climate_input_filesuffix='', output_filesuffix='',
+                          init_model_filesuffix=None, init_model_yr=None,
+                          init_model_fls=None, zero_initial_glacier=False,
+                          bias=0, **kwargs):
+    """
+    A wrapper function for flowline_model_run expressly with FactorialSnowpackModel.
+    no kwarg is given for mb_model_class.
+
+    Parameters
+    ----------
+    gdir : :py:class:`oggm.GlacierDirectory`
+        the glacier directory to process
+    ys : int
+        start year of the model run (default: from the glacier geometry
+        date if init_model_filesuffix is None, else init_model_yr)
+    ye : int
+        end year of the model run (default: last year of the provided
+        climate file)
+    store_monthly_step : bool
+        whether to store the diagnostic data at a monthly time step or not
+        (default is yearly)
+    store_model_geometry : bool
+        whether to store the full model geometry run file to disk or not.
+        (new in OGGM v1.4.1: default is to follow
+        cfg.PARAMS['store_model_geometry'])
+    store_fl_diagnostics : bool
+        whether to store the model flowline diagnostics to disk or not.
+        (default is to follow cfg.PARAMS['store_fl_diagnostics'])
+    climate_filename : str
+        name of the climate file, e.g. 'climate_historical' (default) or
+        'gcm_data'
+    mb_model : :py:class:`core.MassBalanceModel`
+        User-povided MassBalanceModel instance. Default is to use a
+        mb_model_class instance (default MonthlyTIModel)
+        together with the provided parameters climate_filename,
+        bias and climate_input_filesuffix.
+    climate_input_filesuffix: str
+        filesuffix for the input climate file
+    output_filesuffix : str
+        for the output file
+    init_model_filesuffix : str
+        if you want to start from a previous model run state. Can be
+        combined with `init_model_yr`
+    init_model_yr : int
+        the year of the initial run you want to start from. The default
+        is to take the last year of the simulation.
+    init_model_fls : []
+        list of flowlines to use to initialise the model (the default is the
+        present_time_glacier file from the glacier directory).
+        Ignored if `init_model_filesuffix` is set
+    zero_initial_glacier : bool
+        if true, the ice thickness is set to zero before the simulation
+    bias : float
+        bias of the mb model (offset to add to the MB). Default is zero.
+    fixed_geometry_spinup_yr : int
+        if set to an integer, the model will artificially prolongate
+        all outputs of run_until_and_store to encompass all time stamps
+        starting from the chosen year. The only output affected are the
+        glacier wide diagnostic files - all other outputs are set
+        to constants during "spinup"
+    kwargs : dict
+        kwargs to pass to the flowline_model_run task
+
+    """
+
 
 class FactorialSnowpackModel(MassBalanceModel):
     def __init__(self,
@@ -247,7 +320,9 @@ class FactorialSnowpackModel(MassBalanceModel):
                  zmin=None,
                  zmax=None,
                  Nbnd=15,
-                 bias=0.):
+                 bias=0.,
+                 save_runoff=False,
+                 runoff_freq='D'):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in ma
@@ -333,6 +408,9 @@ class FactorialSnowpackModel(MassBalanceModel):
                 self.spinup_state()
             else:
                 self.spinup_state(fls=fls)
+
+        self.save_runoff = save_runoff
+        self.runoff_freq = runoff_freq
 
     def spinup_state(self, fls=None):
 
@@ -464,6 +542,10 @@ class FactorialSnowpackModel(MassBalanceModel):
         else:
             dz = heights[:Nseg]-self.zref
             Nbnd = Nseg
+
+        match self.runoff_freq:
+            case 'D':
+                Nroff
 
         Nroff = 1
         if Nbnd>0:
