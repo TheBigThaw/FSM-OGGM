@@ -204,16 +204,12 @@ do n = 1, Ntim
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
                       Mice(k),RofI(k),RofS(k), snd(k),SWE(k)           )
-! DNG my understanding is that the Runoff is treated as CUMULATIVE in 
-!     ICE() but it is not in SNOW() -- hence cumulating here in time
-!     and by band
+! DNG my understanding is that the Runoff found is the amount per time step
+!     so here accumulate in time and by band
     RoffSn(1+(n-1)/n_roff) = RoffSn(1+(n-1)/n_roff) + RofS(k) * areas(k)
+    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
   end do
   massb = massb - Mice
-end do
-do k = 1, Nbnd
-! DNG cumulating only by band
-    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
 end do
 massb = massb + SWE - SWE0
 
@@ -535,7 +531,7 @@ call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
 ! DNG in the main branch Roff is not incremented
 !     here but it seems like it should be?
-RofI = RofI + Melt*dt
+RofI = Mice
 do k = 1, Nice
   Tice(k) = Tice(k) + dTice(k)
   ! DNG should this be equality? 
