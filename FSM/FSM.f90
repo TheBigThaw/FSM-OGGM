@@ -149,7 +149,7 @@ end program FSM
 !-----------------------------------------------------------------------
 subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
-                 areas, heights,                                       &
+                 areas, heights,topo,                                  &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
                  RoffGl,RoffSn)
 implicit none
@@ -161,7 +161,7 @@ real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
 real, dimension(Ntim), intent(in) :: LW,Ps,Qa,Rf,Sf,SW,Ta,Ua
 real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area of segments
-                                                     ! and surface height of each segment
+real, dimension(Nseg), intent(in) :: topo            ! and surface height of each segment
                                                      ! (even non-ice covered)
 real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
@@ -176,8 +176,10 @@ real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
 
 call SET_PARAMETERS
 
-massb = 0
+massb(:) = 0
 RoffGl(:) = 0
+RofI(:) = 0
+RofS(:) = 0
 n_roff = Ntim / Nroff
 do k = 1, Nbnd
   SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
@@ -192,11 +194,12 @@ do n = 1, Ntim
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
                       Mice(k),RofI(k),RofS(k), snd(k),SWE(k)           )
     
-    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
     RoffSn(1+(n-1)/n_roff) = RoffSn(1+(n-1)/n_roff) + RofS(k) * areas(k)
   end do
   massb = massb - Mice
-  
+end do
+do k = 1, Nbnd
+    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
 end do
 massb = massb + SWE - SWE0
 
@@ -513,7 +516,7 @@ call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
 do k = 1, Nice
   Tice(k) = Tice(k) + dTice(k)
-  if (Tice(k) > Tm) then
+  if (Tice(k) >= Tm) then
     Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
     Mice = Mice + Melt*dt
     RofI = RofI + Melt*dt

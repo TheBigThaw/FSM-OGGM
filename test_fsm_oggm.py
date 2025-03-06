@@ -5,19 +5,22 @@ from oggm import cfg, utils
 from IPython import embed
 from oggm import workflow, tasks
 from IPython import embed
-from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data
+from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data, fsm_flowline_model_run
 
 cfg.initialize(logging_level='DEBUG')
 
+
 # if multiprocessing is set to True, then 
 # pooling will not be used for WFDE5 data
-cfg.PARAMS['use_multiprocessing'] = False
+cfg.PARAMS['use_multiprocessing'] = True
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
 cfg.PARAMS['FSM_save_runoff'] = False
 cfg.PARAMS['FSM_runoff_frequency'] = 'D'
 #cfg.PARAMS['FSM_param_asmx'] = .99
+_doc = ('A netcdf file containing ...')
+cfg.BASENAMES['FSM_runoff'] = ('FSM_runoff.nc',_doc)
 
 # the following if True means FSM will be run with a fixed # of columns
 # independent on the number of glacier sectoins/elev bands. These
@@ -55,7 +58,7 @@ print('we are working here', cfg.PATHS['working_dir'])
 
 # bespoke path -- needs to be reset
 cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
-cfg.PATHS['climate_file'] = '/Users/danielgoldberg/Documents/WFDE5_rof/'
+#cfg.PATHS['climate_file'] = '/Users/danielgoldberg/Documents/WFDE5_rof/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
 cfg.PARAMS['continue_on_error'] = True
@@ -90,7 +93,7 @@ ds_rof = pd.read_csv('rof_ids',header=None)
 
 # By default only Hintereisferner is modeled.
 # To model all values in the attached list uncomment below.
-#selection = ds_rof[0].values.tolist()
+selection = ds_rof[0].values.tolist()[:3]
 
 
 if reset:
@@ -138,10 +141,10 @@ workflow.calibrate_inversion_from_consensus(
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
 
-workflow.execute_entity_task(tasks.run_from_climate_data,gdirs,
+workflow.execute_entity_task(fsm_flowline_model_run,gdirs,
                              climate_filename='climate_historical_fsm',
                              ys=1981, ye=2019,
-                             mb_model_class=FactorialSnowpackModel)
+                             save_runoff=True)
 
 print('all worked')
 

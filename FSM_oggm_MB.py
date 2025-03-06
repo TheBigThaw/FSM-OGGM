@@ -7,9 +7,10 @@ import multiprocessing
 import os
 import numpy as np
 from datetime import datetime
-from oggm.core.massbalance import MassBalanceModel
+from oggm.core.massbalance import MassBalanceModel, MultipleFlowlineMassBalance
 from oggm.utils import ncDataset
 from oggm.cfg import SEC_IN_YEAR
+from oggm.core.flowline import flowline_model_run
 import netCDF4
 from oggm import cfg, utils
 from oggm import entity_task
@@ -248,6 +249,7 @@ def fsm_flowline_model_run(gdir, ys=None, ye=None,
                           climate_input_filesuffix='', output_filesuffix='',
                           init_model_filesuffix=None, init_model_yr=None,
                           init_model_fls=None, zero_initial_glacier=False,
+                          save_runoff=False, runoff_freq='D',
                           bias=0, **kwargs):
     """
     A wrapper function for flowline_model_run expressly with FactorialSnowpackModel.
@@ -305,11 +307,74 @@ def fsm_flowline_model_run(gdir, ys=None, ye=None,
         starting from the chosen year. The only output affected are the
         glacier wide diagnostic files - all other outputs are set
         to constants during "spinup"
+    save_runoff: bool
+        if True, signal to mb model to cumulate runoff at frequency 
+        requested and save
+    runoff_freq: str
+        frequency of stored runoff. only 'D' (daily) allowed
     kwargs : dict
         kwargs to pass to the flowline_model_run task
 
     """
 
+    if init_model_filesuffix is not None:
+        fp = gdir.get_filepath('model_geometry',
+                               filesuffix=init_model_filesuffix)
+        fmod = FileModel(fp)
+        if init_model_yr is None:
+            init_model_yr = fmod.last_yr
+        fmod.run_until(init_model_yr)
+        init_model_fls = fmod.fls
+        if ys is None:
+            ys = init_model_yr
+
+    try:
+        rgi_year = gdir.rgi_date.year
+    except AttributeError:
+        rgi_year = gdir.rgi_date
+
+    # Take from rgi date if not set yet
+    if ys is None:
+        # See also: https://github.com/OGGM/oggm/issues/1020
+        # Even in calendar dates, we prefer to start in the next year
+        # as the rgi is often from snow free images the year before (e.g. Aug)
+        ys = rgi_year + 1
+
+    if ys <= rgi_year and init_model_filesuffix is None:
+        log.warning('You are attempting to run_with_climate_data at dates '
+                    'prior to the RGI inventory date. This may indicate some '
+                    'problem in your workflow. Consider using '
+                    '`fixed_geometry_spinup_yr` for example.')
+
+    if mb_model is None:
+        mb_model = MultipleFlowlineMassBalance(gdir,
+                                               mb_model_class=FactorialSnowpackModel,
+                                               filename=climate_filename,
+                                               bias=bias,
+                                               input_filesuffix=climate_input_filesuffix,
+                                               save_runoff=save_runoff,
+                                               runoff_freq=runoff_freq)
+
+    if save_runoff:
+        for flowlinembmodel in mb_model.flowline_mb_models:
+            flowlinembmodel.init_runoff_arrays()
+
+
+    model = flowline_model_run(gdir, output_filesuffix=output_filesuffix,
+                              mb_model=mb_model, ys=ys, ye=ye,
+                              store_monthly_step=store_monthly_step,
+                              store_model_geometry=store_model_geometry,
+                              store_fl_diagnostics=store_fl_diagnostics,
+                              init_model_fls=init_model_fls,
+                              zero_initial_glacier=zero_initial_glacier,
+                              fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
+                              **kwargs)
+
+    if save_runoff:
+        for flowlinembmodel in mb_model.flowline_mb_models:
+            flowlinembmodel.write_runoff_file()
+
+    return model
 
 class FactorialSnowpackModel(MassBalanceModel):
     def __init__(self,
@@ -322,7 +387,8 @@ class FactorialSnowpackModel(MassBalanceModel):
                  Nbnd=15,
                  bias=0.,
                  save_runoff=False,
-                 runoff_freq='D'):
+                 runoff_freq='D',
+                 runoff_filesuffix=''):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in ma
@@ -398,9 +464,20 @@ class FactorialSnowpackModel(MassBalanceModel):
                     calendar=nc['time'].calendar)
             self.years = np.array([date.year for date in dates])
             self.months = np.array([date.month for date in dates])
+            self.days = np.array([date.day for date in dates])
         self._mb = mb
         self.ys = min(self.years)
         self.ye = max(self.years)
+
+        self.save_runoff = save_runoff
+        self.runoff_freq = runoff_freq
+
+        if save_runoff:
+
+            self.runoff_dates = None
+            self.runoff_ice = None
+            self.runoff_snow = None
+            self.runoff_file = gdir.get_filepath('FSM_runoff', filesuffix=input_filesuffix)
 
         if (self.spinup):
 
@@ -409,8 +486,6 @@ class FactorialSnowpackModel(MassBalanceModel):
             else:
                 self.spinup_state(fls=fls)
 
-        self.save_runoff = save_runoff
-        self.runoff_freq = runoff_freq
 
     def spinup_state(self, fls=None):
 
@@ -477,6 +552,36 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.Tice = np.full((self.Nice, self.Nbnd), self.Tm, 'f', order='F')  # Ice layer temperatures (K)
             self.Tsnw = np.full((self.Nsmx, self.Nbnd), self.Tm, 'f', order='F')  # Snow layer temperatures (K)
 
+    def init_runoff_arrays(self):
+
+        self.runoff_dates = None
+        self.runoff_ice = None
+        self.runoff_snow = None
+
+    def write_runoff_file(self):
+        with netCDF4.Dataset(self.runoff_file, 'w', format='NETCDF4') as dataset:
+    
+            time_dim = dataset.createDimension('dates', len(self.runoff_dates))
+               
+            # Define variables
+            time_var = dataset.createVariable('time', 'f8', ('dates',))
+            var1_var = dataset.createVariable('runoff_ice', 'f4', ('dates',))
+            var2_var = dataset.createVariable('runoff_snow', 'f4', ('dates',))
+
+            time_var.units = 'days since 1970-01-01'
+            time_var.calendar = 'gregorian'
+
+            var1_var.units = 'kg'
+            var1_var.description = 'runoff due to the melting of ice in the glacier in this timeslice'
+
+            var2_var.units = 'kg'
+            var2_var.description = 'runoff due to the melting of snow in the glacier in this timeslice'
+
+            # Convert datetime64 to numeric values (days since epoch)
+            time_var[:] = (self.runoff_dates - np.datetime64('1970-01-01')) / np.timedelta64(1, 'D')
+            var1_var[:] = self.runoff_ice
+            var2_var[:] = self.runoff_snow
+
     def create_nml(reset=False):
 
         params = cfg.PARAMS
@@ -517,8 +622,13 @@ class FactorialSnowpackModel(MassBalanceModel):
             # limit the FSM columns only to where there is ice. Here, we model
             # to the lowest/last ice filled segment, mb past this point is zero
             Nseg = len(np.where((heights-fls[0].bed_h) > 1e-4)[0])
+            bed = fls[0].bed_h
         else:
+            # if there is no bed_h attribute, FSM still expects topography
+            # to limit melt. we pass bed=heights-100
+            # to the lowest/last ice filled segment, mb past this point is zero
             Nseg = len(heights)
+            bed = heights-100
 
         if year is not None:
             inds = np.where(self.years==year)
@@ -543,25 +653,38 @@ class FactorialSnowpackModel(MassBalanceModel):
             dz = heights[:Nseg]-self.zref
             Nbnd = Nseg
 
-        match self.runoff_freq:
-            case 'D':
-                Nroff
+        if (self.save_runoff):
+            match self.runoff_freq:
+                case 'D':
+                    uniq_ind = np.unique(np.column_stack((self.years[inds], self.months[inds], self.days[inds])), 
+                                       axis=0, return_index=True)
+                    Nroff = len(uniq_ind[1])
+                case _:
+                    raise RuntimeError(f'Can return either daily runoff '
+                                       f'or no runoff for FSM now')
+        else:
+            Nroff = 1
 
-        Nroff = 1
         if Nbnd>0:
-            mbloc, roff = FSM.fsmpy(self.Dice, self.Dmin, dz, LW, Ps,
+            mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.Dice, self.Dmin, dz, LW, Ps,
                        Qa, Rf, Sf, SW, Ta, Ua,
-                       areas, heights, self.albs[:Nbnd], 
+                       areas[:Nseg], heights[:Nseg], bed[:Nseg],
+                       self.albs[:Nbnd],
                        self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd],
                        self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], 
                        self.Tice[:,:Nbnd], self.Tsnw[:,:Nbnd],
-                       self.Tsrf[:Nbnd], Nbnd,self.Nice, self.Nsmx, 
-                       Ntim, Nseg, Nroff)
+                       self.Tsrf[:Nbnd], 
+                       nbnd=Nbnd,
+                       nice=self.Nice, 
+                       nsmx=self.Nsmx, 
+                       ntim=Ntim, 
+                       nseg=Nseg)
 
         else:
             # this is to address the case where the entire glacier has retreated
             mbloc = np.empty(0)
-            roff = np.zeros(Nroff)
+            roffgl = np.zeros(Nroff) # kg
+            roffsn = np.zeros(Nroff)
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         if year is None:
@@ -570,8 +693,19 @@ class FactorialSnowpackModel(MassBalanceModel):
             baseline_y = 1
 
         rho = self.rho = cfg.PARAMS['ice_density']
-        mbloc = (mbloc / baseline_y) / SEC_IN_YEAR / rho
+        mbloc = (mbloc / baseline_y) / SEC_IN_YEAR / rho # meters per second
 
+        if self.save_runoff:
+            datetimearr = np.array([np.datetime64(f"{y}-{m:02d}-{d:02d}") for y, m, d in zip(self.years[inds], self.months[inds], self.days[inds])])
+            datetimearr = np.unique(datetimearr)
+            if self.runoff_dates is None:
+                self.runoff_dates = datetimearr
+                self.runoff_ice = roffgl
+                self.runoff_snow = roffsn
+            else:
+                self.runoff_dates = np.concatenate((self.runoff_dates,datetimearr))
+                self.runoff_ice = np.concatenate((self.runoff_ice,roffgl))
+                self.runoff_snow = np.concatenate((self.runoff_snow, roffsn))
 
         if self.interp_bnds:
             if min(heights) < self.zmin or max(heights) > self.zmax:
@@ -585,7 +719,7 @@ class FactorialSnowpackModel(MassBalanceModel):
         else:
             mb[:Nbnd] = mbloc
 
-        return mb, roff
+        return mb
 
 
     def is_year_valid(self, year):
