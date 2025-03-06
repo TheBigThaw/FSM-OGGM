@@ -56,6 +56,8 @@ real :: &
 ! Diagnostics
 real :: &
   Mice(Nbnd),        &! Ice mass change (kg/m^2)
+! DNG: Roff array replaced with 2 arrays tracking
+! runoff from ice and snow
   RofI(Nbnd),        &! Runoff from ice (kg/m^2)
   RofS(Nbnd),        &! Runoff from rain/snow (kg/m^2)
   snd(Nbnd),         &! Snow depth (m)
@@ -110,6 +112,7 @@ do
   do k = 1, Nbnd
     call DOWNSCALE(LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                            &
                    dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz               )
+! DNG: definition of FSM_TIMESTEP changed as shown below           
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
@@ -147,6 +150,11 @@ end program FSM
 !-----------------------------------------------------------------------
 ! Landing routine for calling FSM from Python
 !-----------------------------------------------------------------------
+
+! DNG: some arguments added: Nroff (number of runoff records to return),
+!      as well as RoffGl and RoffSn output arrays. Declarations below
+!      modified similarly
+
 subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
                  areas, heights,topo,                                  &
@@ -176,7 +184,10 @@ real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
 
 call SET_PARAMETERS
 
+! DNG wasnt sure if this needed
 massb(:) = 0
+
+! DNG zeroing new arrays
 RoffGl(:) = 0
 RofI(:) = 0
 RofS(:) = 0
@@ -193,12 +204,15 @@ do n = 1, Ntim
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
                       Mice(k),RofI(k),RofS(k), snd(k),SWE(k)           )
-    
+! DNG my understanding is that the Runoff is treated as CUMULATIVE in 
+!     ICE() but it is not in SNOW() -- hence cumulating here in time
+!     and by band
     RoffSn(1+(n-1)/n_roff) = RoffSn(1+(n-1)/n_roff) + RofS(k) * areas(k)
   end do
   massb = massb - Mice
 end do
 do k = 1, Nbnd
+! DNG cumulating only by band
     RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
 end do
 massb = massb + SWE - SWE0
@@ -437,7 +451,10 @@ real :: &
   Gice,              &! Heat flux into ice (W/m^2)
   Gsrf,              &! Heat flux into surface (W/m^2)
   Melt                ! Melt rate (kg/m^2/s)
-  
+
+! DNG in SNOW() and ICE() definitions we separate the snow runoff RofS 
+! and ice runoff RofI by call.
+
 call SURFACE(Nice,Nsmx,Dice,Dsnw,LW,Ps,Qa,Sf,Sice,Sliq,SW,Ta,Tice,     &
              Tsnw,Ua,albs,Tsrf,Esrf,Gsrf,Melt)
 
@@ -452,6 +469,8 @@ end subroutine FSM_TIMESTEP
 ! Update ice temperatures
 !-----------------------------------------------------------------------
 subroutine ICE(Nice,Dice,Esrf,Gice,Melt,RofI,Tice,Mice)
+
+! DNG everywhere in ICE() replace Roff by RofI
 
 use CONSTANTS, only : &
   hcap_ice,          &! Specific heat capacity of ice (J/K/kg)
@@ -516,6 +535,9 @@ call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
 do k = 1, Nice
   Tice(k) = Tice(k) + dTice(k)
+  ! DNG should this be equality? 
+  !     and what if there is ice above the melt
+  !     point lower down in the ice..?
   if (Tice(k) >= Tm) then
     Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
     Mice = Mice + Melt*dt
@@ -566,6 +588,8 @@ subroutine SNOW(Nice,Nsmx,Dice,Dmin,Gsrf,Rf,Sf,Ta,Tice,                &
                 Dsnw,Esrf,Melt,Nsnw,Sice,Sliq,Tsnw,                    &
                 Gice,RofS,snd,SWE)
  
+! DNG everywhere in ICE() replace Roff by RofS
+
 use CONSTANTS, only : &
   hcap_ice,          &! Specific heat capacity of ice (J/K/kg)
   hcap_wat,          &! Specific heat capacity of water (J/K/kg)
