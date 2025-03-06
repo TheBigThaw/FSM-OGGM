@@ -533,12 +533,15 @@ c(k) = 0
 rhs(k) = Gs(k-1)*(Tice(k-1) - Tice(k))*dt
 call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
+! DNG in the main branch Roff is not incremented
+!     here but it seems like it should be?
+RofI = RofI + Melt*dt
 do k = 1, Nice
   Tice(k) = Tice(k) + dTice(k)
   ! DNG should this be equality? 
   !     and what if there is ice above the melt
   !     point lower down in the ice..?
-  if (Tice(k) >= Tm) then
+  if (Tice(k) > Tm) then
     Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
     Mice = Mice + Melt*dt
     RofI = RofI + Melt*dt
