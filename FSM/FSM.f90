@@ -529,9 +529,8 @@ c(k) = 0
 rhs(k) = Gs(k-1)*(Tice(k-1) - Tice(k))*dt
 call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
-! DNG in the main branch Roff is not incremented
-!     here but it seems like it should be?
-RofI = Mice
+RofI = 0
+! DNG from what i see, runoff is never updated below
 do k = 1, Nice
   Tice(k) = Tice(k) + dTice(k)
   ! DNG should this be equality? 
