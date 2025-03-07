@@ -2,9 +2,7 @@ import numpy as np
 import geopandas as gpd
 import pandas as pd
 from oggm import cfg, utils
-from IPython import embed
 from oggm import workflow, tasks
-from IPython import embed
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data, fsm_flowline_model_run
 
 cfg.initialize(logging_level='DEBUG')
@@ -12,14 +10,16 @@ cfg.initialize(logging_level='DEBUG')
 
 # if multiprocessing is set to True, then 
 # pooling will not be used for WFDE5 data
-cfg.PARAMS['use_multiprocessing'] = True
+cfg.PARAMS['use_multiprocessing'] = False
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
 cfg.PARAMS['FSM_save_runoff'] = False
 cfg.PARAMS['FSM_runoff_frequency'] = 'D'
 #cfg.PARAMS['FSM_param_asmx'] = .99
-_doc = ('A netcdf file containing ...')
+_doc = ('A netcdf file containing dates and ' + 
+        'ice-based and snow-based runoff volume ' + 
+        'for each date interval')
 cfg.BASENAMES['FSM_runoff'] = ('FSM_runoff.nc',_doc)
 
 # the following if True means FSM will be run with a fixed # of columns
@@ -52,13 +52,12 @@ print('**Important set this to False to avoid '
 
 # this sets a temporary working directory. if you want to use a permanent
 # directory then uncomment and adapt the following line.
-#cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
+cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
+#cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
 print('we are working here', cfg.PATHS['working_dir'])
 
 # bespoke path -- needs to be reset
 cfg.PATHS['climate_file'] = '/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/'
-#cfg.PATHS['climate_file'] = '/Users/danielgoldberg/Documents/WFDE5_rof/'
 cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
 cfg.PARAMS['continue_on_error'] = True
@@ -93,7 +92,7 @@ ds_rof = pd.read_csv('rof_ids',header=None)
 
 # By default only Hintereisferner is modeled.
 # To model all values in the attached list uncomment below.
-selection = ds_rof[0].values.tolist()[:3]
+#selection = ds_rof[0].values.tolist()
 
 
 if reset:
@@ -135,8 +134,6 @@ workflow.calibrate_inversion_from_consensus(
 #    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
     volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
 )
-
-
 
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
