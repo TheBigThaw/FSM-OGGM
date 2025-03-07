@@ -14,7 +14,7 @@ cfg.PARAMS['use_multiprocessing'] = False
 cfg.PARAMS['mp_processes'] = 24
 cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
-cfg.PARAMS['FSM_save_runoff'] = False
+cfg.PARAMS['FSM_save_runoff'] = True
 cfg.PARAMS['FSM_runoff_frequency'] = 'D'
 #cfg.PARAMS['FSM_param_asmx'] = .99
 _doc = ('A netcdf file containing dates and ' + 
@@ -45,7 +45,7 @@ cfg.PARAMS['FSM_param_asmx'] = .85
 # one FSM will read. would be good to enable to pass a path to the namelist to FSM
 FactorialSnowpackModel.create_nml(reset=True)
 
-reset=False
+reset=True
 print('Reset is set to ', reset)
 print('**Important set this to False to avoid '
       'resetting the glacier directory everytime this is ran!**')
@@ -140,8 +140,7 @@ workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
 
 workflow.execute_entity_task(fsm_flowline_model_run,gdirs,
                              climate_filename='climate_historical_fsm',
-                             ys=1981, ye=2019,
-                             save_runoff=True)
+                             ys=1981, ye=2019)
 
 print('all worked')
 

@@ -248,7 +248,6 @@ def fsm_flowline_model_run(gdir, ys=None, ye=None,
                           climate_input_filesuffix='', output_filesuffix='',
                           init_model_filesuffix=None, init_model_yr=None,
                           init_model_fls=None, zero_initial_glacier=False,
-                          save_runoff=False, runoff_freq='D',
                           bias=0, **kwargs):
     """
     A wrapper function for flowline_model_run expressly with FactorialSnowpackModel.
@@ -306,11 +305,6 @@ def fsm_flowline_model_run(gdir, ys=None, ye=None,
         starting from the chosen year. The only output affected are the
         glacier wide diagnostic files - all other outputs are set
         to constants during "spinup"
-    save_runoff: bool
-        if True, signal to mb model to cumulate runoff at frequency 
-        requested and save
-    runoff_freq: str
-        frequency of stored runoff. only 'D' (daily) allowed
     kwargs : dict
         kwargs to pass to the flowline_model_run task
 
@@ -350,11 +344,9 @@ def fsm_flowline_model_run(gdir, ys=None, ye=None,
                                                mb_model_class=FactorialSnowpackModel,
                                                filename=climate_filename,
                                                bias=bias,
-                                               input_filesuffix=climate_input_filesuffix,
-                                               save_runoff=save_runoff,
-                                               runoff_freq=runoff_freq)
+                                               input_filesuffix=climate_input_filesuffix)
 
-    if save_runoff:
+    if mb_model.flowline_mb_models[0].save_runoff:
         for flowlinembmodel in mb_model.flowline_mb_models:
             flowlinembmodel.init_runoff_arrays()
 
@@ -369,7 +361,7 @@ def fsm_flowline_model_run(gdir, ys=None, ye=None,
                               fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
                               **kwargs)
 
-    if save_runoff:
+    if mb_model.flowline_mb_models[0].save_runoff:
         for flowlinembmodel in mb_model.flowline_mb_models:
             flowlinembmodel.write_runoff_file()
 
@@ -385,8 +377,6 @@ class FactorialSnowpackModel(MassBalanceModel):
                  zmax=None,
                  Nbnd=15,
                  bias=0.,
-                 save_runoff=False,
-                 runoff_freq='D',
                  runoff_filesuffix=''):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
@@ -468,10 +458,10 @@ class FactorialSnowpackModel(MassBalanceModel):
         self.ys = min(self.years)
         self.ye = max(self.years)
 
-        self.save_runoff = save_runoff
-        self.runoff_freq = runoff_freq
+        self.save_runoff = cfg.PARAMS['FSM_save_runoff']
+        self.runoff_freq = cfg.PARAMS['FSM_runoff_frequency'] 
 
-        if save_runoff:
+        if self.save_runoff:
 
             self.runoff_dates = None
             self.runoff_ice = None
