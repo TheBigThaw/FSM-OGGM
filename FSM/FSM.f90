@@ -168,8 +168,8 @@ real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
 real, dimension(Ntim), intent(in) :: LW,Ps,Qa,Rf,Sf,SW,Ta,Ua
-real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area of segments
-real, dimension(Nseg), intent(in) :: topo            ! and surface height of each segment
+real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area (m^2) of segments
+real, dimension(Nseg), intent(in) :: topo            ! and surface height and bed elev (m) of each segment
                                                      ! (even non-ice covered)
 real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
