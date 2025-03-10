@@ -529,20 +529,19 @@ c(k) = 0
 rhs(k) = Gs(k-1)*(Tice(k-1) - Tice(k))*dt
 call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
-RofI = 0
-! DNG from what i see, runoff is never updated below
-do k = 1, Nice
-  Tice(k) = Tice(k) + dTice(k)
-  ! DNG should this be equality? 
-  !     and what if there is ice above the melt
-  !     point lower down in the ice..?
-  if (Tice(k) > Tm) then
-    Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
-    Mice = Mice + Melt*dt
-    RofI = RofI + Melt*dt
-    Tice(k) = Tm
-  end if
-end do
+! DNG in Main branch, Roff is not set to Melt as it is here
+RofI = Melt*dt
+
+! DNG from conv with Richard, the loop below is not needed
+!do k = 1, Nice
+!  Tice(k) = Tice(k) + dTice(k)
+!  if (Tice(k) > Tm) then
+!    Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
+!    Mice = Mice + Melt*dt
+!    RofI = RofI + Melt*dt
+!    Tice(k) = Tm
+!  end if
+!end do
 
 end subroutine ICE
 
