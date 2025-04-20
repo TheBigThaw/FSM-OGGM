@@ -56,7 +56,10 @@ real :: &
 ! Diagnostics
 real :: &
   Mice(Nbnd),        &! Ice mass change (kg/m^2)
-  Roff(Nbnd),        &! Runoff (kg/m^2)
+! DNG: Roff array replaced with 2 arrays tracking
+! runoff from ice and snow
+  RofI(Nbnd),        &! Runoff from ice (kg/m^2)
+  RofS(Nbnd),        &! Runoff from rain/snow (kg/m^2)
   snd(Nbnd),         &! Snow depth (m)
   SWE(Nbnd),         &! Snow water equivalent (kg/m^2) 
   Mice_tot(Nbnd),    &! Cumulative ice mass change (kg/m^2)
@@ -109,14 +112,15 @@ do
   do k = 1, Nbnd
     call DOWNSCALE(LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                            &
                    dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz               )
+! DNG: definition of FSM_TIMESTEP changed as shown below           
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
-                      Mice(k),Roff(k),snd(k),SWE(k)                    )
+                      Mice(k),RofI(k),RofS(k),snd(k),SWE(k)            )
   end do
   Mice_tot = Mice_tot + Mice
-  Roff_tot = Roff_tot + Roff
+  Roff_tot = Roff_tot + RofI + RofS
   if (modulo(hour,24)==0) then
       write(10,100) year,month,day,hour,                               &
                     Mice_tot(:),Roff_tot(:),snd(:),SWE(:)
@@ -146,32 +150,48 @@ end program FSM
 !-----------------------------------------------------------------------
 ! Landing routine for calling FSM from Python
 !-----------------------------------------------------------------------
-subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,                             &
+
+! DNG: some arguments added: Nroff (number of runoff records to return),
+!      as well as RoffGl and RoffSn output arrays. Declarations below
+!      modified similarly
+
+subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
-                 areas, heights,                                       &
-                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,              &
-                 massb)
+                 areas, heights,topo,                                  &
+                 albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
+                 RoffGl,RoffSn)
 implicit none
-integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg
+integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
+                                                     ! Nroff: number of runoff records
+                                                     ! should be ntim / (# of time steps in roff freq)
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
 real, dimension(Ntim), intent(in) :: LW,Ps,Qa,Rf,Sf,SW,Ta,Ua
-real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area of segments
-                                                     ! and surface height of each segment
+real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area (m^2) of segments
+real, dimension(Nseg), intent(in) :: topo            ! and surface height and bed elev (m) of each segment
                                                      ! (even non-ice covered)
 real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
 real, dimension(Nsmx,Nbnd), intent(inout) :: Dsnw,Sice,Sliq,Tsnw
 real, dimension(Nice,Nbnd), intent(inout) :: Tice
 real, dimension(Nbnd), intent(out) :: massb
-integer :: k,n
-real, dimension(Nbnd) :: Mice,Roff,snd,SWE,SWE0
+real, dimension(Nroff), intent(out) :: RoffGl
+real, dimension(Nroff), intent(out) :: RoffSn
+integer :: k,n,n_roff
+real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0
 real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
 
 call SET_PARAMETERS
 
-massb = 0
+! DNG wasnt sure if this needed
+massb(:) = 0
+
+! DNG zeroing new arrays
+RoffGl(:) = 0
+RofI(:) = 0
+RofS(:) = 0
+n_roff = Ntim / Nroff
 do k = 1, Nbnd
   SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
 end do
@@ -183,7 +203,11 @@ do n = 1, Ntim
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
-                      Mice(k),Roff(k),snd(k),SWE(k)                    )
+                      Mice(k),RofI(k),RofS(k), snd(k),SWE(k)           )
+! DNG my understanding is that the Runoff found is the amount per time step
+!     so here accumulate in time and by band
+    RoffSn(1+(n-1)/n_roff) = RoffSn(1+(n-1)/n_roff) + RofS(k) * areas(k)
+    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
   end do
   massb = massb - Mice
 end do
@@ -374,7 +398,7 @@ end subroutine DOWNSCALE
 !-----------------------------------------------------------------------
 subroutine FSM_TIMESTEP(Nice,Nsmx,Dice,Dmin,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,   &
                         albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,       &
-                        Mice,Roff,snd,SWE                              )
+                        Mice,RofI,RofS,snd,SWE                         )
 
 implicit none
 
@@ -412,7 +436,8 @@ real, intent(inout) :: &
 ! Diagnostics  
 real, intent(out) :: &
   Mice,              &! Ice mass change (kg/m^2)
-  Roff,              &! Cumulative runoff (kg/m^2)
+  RofI,              &! Cumulative runoff from Ice (kg/m^2)
+  RofS,              &! Cumulative runoff from Snow (kg/m^2)
   snd,               &! Snow depth (m)
   SWE                 ! Snow water equivalent (kg/m^2) 
 
@@ -422,21 +447,26 @@ real :: &
   Gice,              &! Heat flux into ice (W/m^2)
   Gsrf,              &! Heat flux into surface (W/m^2)
   Melt                ! Melt rate (kg/m^2/s)
-  
+
+! DNG in SNOW() and ICE() definitions we separate the snow runoff RofS 
+! and ice runoff RofI by call.
+
 call SURFACE(Nice,Nsmx,Dice,Dsnw,LW,Ps,Qa,Sf,Sice,Sliq,SW,Ta,Tice,     &
              Tsnw,Ua,albs,Tsrf,Esrf,Gsrf,Melt)
 
 call SNOW(Nice,Nsmx,Dice,Dmin,Gsrf,Rf,Sf,Ta,Tice,Dsnw,Esrf,Melt,Nsnw,  &
-          Sice,Sliq,Tsnw,Gice,Roff,snd,SWE)
+          Sice,Sliq,Tsnw,Gice,RofS,snd,SWE)
 
-call ICE(Nice,Dice,Esrf,Gice,Melt,Roff,Tice,Mice)
+call ICE(Nice,Dice,Esrf,Gice,Melt,RofI,Tice,Mice)
 
 end subroutine FSM_TIMESTEP
 
 !-----------------------------------------------------------------------
 ! Update ice temperatures
 !-----------------------------------------------------------------------
-subroutine ICE(Nice,Dice,Esrf,Gice,Melt,Roff,Tice,Mice)
+subroutine ICE(Nice,Dice,Esrf,Gice,Melt,RofI,Tice,Mice)
+
+! DNG everywhere in ICE() replace Roff by RofI
 
 use CONSTANTS, only : &
   hcap_ice,          &! Specific heat capacity of ice (J/K/kg)
@@ -460,7 +490,7 @@ real, intent(in) :: &
   
 real, intent(inout) :: &
   Melt,              &! Surface melt rate (kg/m^2/s)
-  Roff,              &! Runoff (kg/m^2)
+  RofI,              &! Runoff (kg/m^2)
   Tice(Nice)          ! Ice layer temperatures (K)
   
 real, intent(out) :: &
@@ -499,15 +529,19 @@ c(k) = 0
 rhs(k) = Gs(k-1)*(Tice(k-1) - Tice(k))*dt
 call TRIDIAG(Nice,Nice,a,b,c,rhs,dTice)
 Mice = (Melt + Esrf)*dt
-do k = 1, Nice
-  Tice(k) = Tice(k) + dTice(k)
-  if (Tice(k) > Tm) then
-    Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
-    Mice = Mice + Melt*dt
-    Roff = Roff + Melt*dt
-    Tice(k) = Tm
-  end if
-end do
+! DNG in Main branch, Roff is not set to Melt as it is here
+RofI = Melt*dt
+
+! DNG from conv with Richard, the loop below is not needed
+!do k = 1, Nice
+!  Tice(k) = Tice(k) + dTice(k)
+!  if (Tice(k) > Tm) then
+!    Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
+!    Mice = Mice + Melt*dt
+!    RofI = RofI + Melt*dt
+!    Tice(k) = Tm
+!  end if
+!end do
 
 end subroutine ICE
 
@@ -549,8 +583,10 @@ end subroutine QSAT
 !-----------------------------------------------------------------------
 subroutine SNOW(Nice,Nsmx,Dice,Dmin,Gsrf,Rf,Sf,Ta,Tice,                &
                 Dsnw,Esrf,Melt,Nsnw,Sice,Sliq,Tsnw,                    &
-                Gice,Roff,snd,SWE)
+                Gice,RofS,snd,SWE)
  
+! DNG everywhere in ICE() replace Roff by RofS
+
 use CONSTANTS, only : &
   hcap_ice,          &! Specific heat capacity of ice (J/K/kg)
   hcap_wat,          &! Specific heat capacity of water (J/K/kg)
@@ -599,7 +635,7 @@ real, intent(inout) :: &
 
 real, intent(out) :: &
   Gice,              &! Heat flux into ice (W/m^2)
-  Roff,              &! Runoff (kg/m^2)
+  RofS,              &! Runoff (kg/m^2)
   snd,               &! Snow depth (m)
   SWE                 ! Snow water equivalent (kg/m^2) 
 
@@ -635,7 +671,7 @@ integer :: &
   Nold                ! Previous number of snow layers
 
 Gice = Gsrf
-Roff = Rf*dt
+RofS = Rf*dt
 
 if (Nsnw > 0) then   ! Existing snwpack
 
@@ -729,10 +765,10 @@ if (Nsnw > 0) then   ! Existing snwpack
     phi = 0
     if (Dsnw(k) > epsilon(Dsnw)) phi = 1 - Sice(k)/(rho_ice*Dsnw(k))
     SliqMax = rho_wat*Dsnw(k)*phi*Wirr
-    Sliq(k) = Sliq(k) + Roff
-    Roff = 0
+    Sliq(k) = Sliq(k) + RofS
+    RofS = 0
     if (Sliq(k) > SliqMax) then  ! Liquid capacity exceeded
-      Roff = Sliq(k) - SliqMax   ! so drainage to next layer
+      RofS = Sliq(k) - SliqMax   ! so drainage to next layer
       Sliq(k) = SliqMax
     end if
     coldcont = csnw(k)*(Tm - Tsnw(k))
