@@ -23,6 +23,7 @@ from progressbar import ProgressBar, Percentage, Bar
 import FSM
 import f90nml
 import pickle, gzip
+from IPython import embed
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -30,9 +31,69 @@ cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
 cfg.add_to_basenames('climate_historical_fsm',
                      'climate_historical_fsm.nc',
                      'FSM ready climate file')
+cfg.add_to_basenames('climate_historical_fsm_metum',
+                     'climate_historical_fsm_metum.nc',
+                     'FSM ready climate file from metum')
 
 # Module logger
 log = logging.getLogger(__name__)
+
+def getDistanceFromLatLonInKm(lat1,lon1,lat2,lon2):
+  R = 6371; # Radius of the earth in km
+  dLat = np.deg2rad(lat2-lat1);  
+  dLon = np.deg2rad(lon2-lon1); 
+  a = np.sin(dLat/2) * np.sin(dLat/2) + \
+      np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * \
+      np.sin(dLon/2) * np.sin(dLon/2)
+  c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a)); 
+  d = R * c; # Distance in km
+  return d
+
+
+
+def find_files_metum(y0=None, y1=None):
+    """
+    Find file paths in climate dir
+    :param y0: (optional) if None picks 1980
+    :param y1: (optional) if None picks 2019
+    :return: paths with file names matching the variable and the years selected
+
+    """
+
+    if y0 is None:
+        y0 = '2000'
+    if y1 is None:
+        y1 = '2019'
+
+    paths_files = sorted(glob.glob(os.path.join(cfg.PATHS['metum_climate_file'],
+                                                'MetUM_Rofental_*_*_*_.nc')))
+
+    files = []
+    year0 = None
+    for path in paths_files:
+        match = re.findall(r'\d+', path)
+        if match:
+            yr = int(match[0])
+            if int(y0) <= yr <= int(y1):
+                if year0 is None:
+                    if int(match[2]) < 12:            
+                        raise FileNotFoundError('1st file should terminate in month 12')
+                    else:
+                        files.append(path)
+                else:
+                    if int(match[2]) < 12 or int(match[1]) > 1:
+                        raise FileNotFoundError('Intermed file should be months 1-12')
+                    elif yr > year0+1:
+                        raise FileNotFoundError('A year is skipped')
+                    else:
+                        files.append(path)
+
+    match = re.findall(r'\d+', files[-1])
+    if int(match[1]) > 1:
+        raise FileNotFoundError('Last file should begin in month 1')
+
+    return files
+
 
 
 def find_files_per_var(var='', y0=None, y1=None):
@@ -86,7 +147,7 @@ def _preprocess(x, i, j):
 
 def xropen_mfdataset(files,
                      lon=None,
-                     lat=None):
+                     lat=None, metum=False):
     """
     Wrapper around xr.open_mfdataset() to pass a specific set of paths
     per climate variable
@@ -98,6 +159,7 @@ def xropen_mfdataset(files,
     """
     partial_func = partial(_preprocess, i=lon, j=lat)
 
+
     ds = xr.open_mfdataset(files,
                            concat_dim='time',
                            preprocess=partial_func,
@@ -105,6 +167,117 @@ def xropen_mfdataset(files,
                            combine='nested')
 
     return ds.load()
+
+
+@entity_task(log, writes=['climate_historical_fsm_metum'])
+def process_metum_data(gdir,
+                       y0=None,
+                       y1=None):
+
+    """
+    Process metum meteorological variables and put them in an FSM ready format
+    per glacier directory, using the grid cell closest to cenlon and cenlat
+
+    At the moment pooling kwarg is set to false if multiprocessing is used
+    """
+
+    gothere=0
+
+    pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=300).start()
+
+    output_file_name = gdir.get_filepath('climate_historical_fsm_metum')
+    if os.path.exists(output_file_name):
+        os.remove(output_file_name)
+
+    lat = gdir.cenlat
+    lon = gdir.cenlon
+
+    if y0 is None:
+        y0 = '2000'
+    if y1 is None:
+        y1 = '2019'
+
+
+    # location and height of reference pixel
+    fpath = os.path.join(cfg.PATHS['metum_climate_file'], 'MetUM_Rofental_1999_10_12_.nc')
+    df = xr.open_dataset(fpath)
+
+    lonminMetum = df['lon'].values
+    latminMetum = df['lat'].values
+
+    # nearest point on grid, using Haversine formula for distance
+
+    D = getDistanceFromLatLonInKm(lat,lon,latminMetum,lonminMetum)
+    j,i = np.argwhere(D==np.min(D))[0]
+
+    ref_pix_lat = df['lat'][j,i].values
+    ref_pix_lon = df['lon'][j,i].values
+    ref_hgt = df['oro'][j, i].values
+
+    paths = find_files_metum(y0=y0, y1=y1)
+
+    dslist = []
+    for path in paths:
+        dslist.append(xr.open_dataset(path).sel(y=j,x=i))
+    ds = xr.concat(dslist, dim='time')
+
+    d0 = ds.time[0]
+    d1 = ds.time[-1]
+    delta = int( (d1 - d0) / np.timedelta64(1, 'h') )
+    dimensions = delta + 1
+
+    coords = dict(time=(range(dimensions)), lon=None, lat=None)
+
+    lwdown = 'LWdown'
+    psurf = 'Psurf'
+    qair = 'Qair'
+    rainf = 'Rainf'
+    snowf = 'Snowf'
+    swdown = 'SWdown'
+    tair = 'Tair'
+    wind = 'Wind'
+
+    colnames=[lwdown,psurf,qair,rainf,snowf,swdown,tair,wind]
+    varnames=['dlw','dsurf','dqair','drainf','dsnowf','dswdown','dtair','dwind']
+
+    dlw = xr.DataArray(None, coords=coords, dims=("time",), name=lwdown, attrs=None)
+    dsurf = xr.DataArray(None, coords=coords, dims=("time",), name=psurf, attrs=None)
+    dqair = xr.DataArray(None, coords=coords, dims=("time",), name=qair, attrs=None)
+    drainf = xr.DataArray(None, coords=coords, dims=("time",), name=rainf, attrs=None)
+    dsnowf = xr.DataArray(None, coords=coords, dims=("time",), name=snowf, attrs=None)
+    dswdown = xr.DataArray(None, coords=coords, dims=("time",), name=swdown, attrs=None)
+    dtair = xr.DataArray(None, coords=coords, dims=("time",), name=tair, attrs=None)
+    dwind = xr.DataArray(None, coords=coords, dims=("time",), name=wind, attrs=None)
+
+    print('oggm multiprocessing used; variables processed in serial')
+
+    dlw = ds.LWdown
+    dsurf = ds.Psurf
+    dqair = ds.Qair
+    drainf = ds.Rainf
+    dsnowf = ds.Snowf
+    dswdown = ds.SWdown
+    dtair = ds.Tair
+    dwind = ds.Wind
+
+    ds_fsm = xr.merge([dlw, dsurf, dqair, drainf, dsnowf, dswdown, dtair, dwind])
+
+    ds_fsm.attrs = {'author': 'Beatriz Recinos and Richard Essery and D Goldberg',
+                'author_info': 'Big thaw OGGM-FSM',
+                'ref_hgt': ref_hgt,
+                'ref_pix_lat': ref_pix_lat,
+                'ref_pix_lon': ref_pix_lon,
+                'climate_source': 'MetUM',
+                'yr_0': y0,
+                'yr_1': y1}
+
+    ds_fsm.to_netcdf(gdir.get_filepath('climate_historical_fsm_metum'),
+                        mode='w',
+                        format='NETCDF4',
+                        engine='netcdf4')
+
+    pbar.finish()
+
 
 
 @entity_task(log, writes=['climate_historical_fsm'])
