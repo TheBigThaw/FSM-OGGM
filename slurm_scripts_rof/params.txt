@@ -6,6 +6,6 @@
 --nbnds 15
 --spinup True
 --climate_file /exports/geos.ed.ac.uk/iceocean/WFDE5_rof/
---glacier_rgi_id RGI60-11.00897
+--glacier_rgi_id None
 --y0 1980
 --y1 2019

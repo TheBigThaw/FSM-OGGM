@@ -81,8 +81,12 @@ def main(args):
     rof_sel = gdf.clip(rof_shp)
     rof_sel = rof_sel.sort_values('Area', ascending=False)
 
-    if args.glacier_rgi_id:
-        selection = rof_sel[rof_sel.RGIId == args.glacier_rgi_id]
+    rgi_id = args.glacier_rgi_id
+    if rgi_id in ('None', '', None):
+        rgi_id = None
+
+    if rgi_id:
+        selection = rof_sel[rof_sel.RGIId == rgi_id]
     else:
         selection = rof_sel
 
@@ -145,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--nbnds', type=int, default=15)
     parser.add_argument('--spinup', type=bool, default=True)
     parser.add_argument('--climate_file', type=str, default='/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/')
-    parser.add_argument('--glacier_rgi_id', type=str, default='RGI60-11.00897')
+    parser.add_argument('--glacier_rgi_id', type=str, default='')
     parser.add_argument('--y0', type=str, default='1980')
     parser.add_argument('--y1', type=str, default='2019')
 
