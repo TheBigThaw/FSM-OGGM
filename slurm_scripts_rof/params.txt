@@ -1,0 +1,11 @@
+--reset True
+--use_multiprocessing True
+--mp_processes 16
+--border 80
+--asm_x 0.85
+--nbnds 15
+--spinup True
+--climate_file /exports/geos.ed.ac.uk/iceocean/WFDE5_rof/
+--glacier_rgi_id RGI60-11.00897
+--y0 1980
+--y1 2019
