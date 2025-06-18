@@ -1,4 +1,5 @@
 --reset True
+--working_dir /exports/csce/datastore/geos/users/brecinos/FSM-OGGM/output/
 --use_multiprocessing True
 --mp_processes 16
 --border 80

@@ -52,7 +52,7 @@ def main(args):
 
     # this sets a temporary working directory. if you want to use a permanent
     # directory then uncomment and adapt the following line.
-    cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
+    cfg.PATHS['working_dir'] = utils.mkdir(args.working_dir, reset=reset)
     # cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
     print('we are working here', cfg.PATHS['working_dir'])
 
@@ -144,6 +144,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
     parser.add_argument('--reset', type=bool, default=True)
+    parser.add_argument('--working_dir', type=str, default='')
     parser.add_argument('--use_multiprocessing', type=bool, default=False)
     parser.add_argument('--mp_processes', type=int, default=2)
     parser.add_argument('--border', type=int, default=80)

@@ -3,6 +3,8 @@ __pycache__/
 FSM/build
 FSM/buildir
 FSM/FSM.egg-info
+input
+output
 dev_notebooks
 FSM/FSM.cpython-39-x86_64-linux-gnu.so
 FSM/*.so
