@@ -13,4 +13,6 @@ FSM_Richard.py
 WFDE5_Hintereisferner_1980-2019.nc
 WFDE5toFSM.py
 nlst
+slurm_scripts_rof/*.err
+slurm_scripts_rof/*.out
 

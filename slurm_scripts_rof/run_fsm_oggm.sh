@@ -15,4 +15,6 @@
 source ~/.bashrc
 mamba activate oggm_fsm
 
+export PYTHONPATH="/exports/csce/datastore/geos/users/brecinos/FSM-OGGM:$PYTHONPATH"
+
 python test_fsm_rofental.py $(<params.txt)

@@ -94,7 +94,8 @@ def main(args):
         gdirs = workflow.init_glacier_directories(selection,
                                                   from_prepro_level=3,
                                                   prepro_base_url=base_url,
-                                                  reset=reset)
+                                                  reset=reset,
+                                                  force=reset)
     else:
         gdirs = workflow.init_glacier_directories(selection)
 
@@ -138,6 +139,7 @@ def main(args):
     workflow.execute_entity_task(fsm_flowline_model_run, gdirs,
                                  climate_filename='climate_historical_fsm',
                                  ys=y0, ye=y1)
+    print("DONE running FSM")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
@@ -150,8 +152,9 @@ if __name__ == '__main__':
     parser.add_argument('--spinup', type=bool, default=True)
     parser.add_argument('--climate_file', type=str, default='/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/')
     parser.add_argument('--glacier_rgi_id', type=str, default='')
-    parser.add_argument('--y0', type=str, default='1980')
-    parser.add_argument('--y1', type=str, default='2019')
+    parser.add_argument('--y0', type=int, default=1980)
+    parser.add_argument('--y1', type=int, default=2019)
+    parser.add_argument('--catchment_path', type=str, default='')
 
     args = parser.parse_args()
     main(args)
