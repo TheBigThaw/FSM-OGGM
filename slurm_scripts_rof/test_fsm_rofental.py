@@ -160,11 +160,9 @@ def main(args):
                                              'distributed_data')
 
     distribute_2d.merge_simulated_thickness(gdirs,
-                                            output_folder=path_for_distributed_data,
                                             add_topography=True,
                                             keep_dem_file=True,
-                                            use_multiprocessing=True,
-                                            simulation_filesuffix='climate_historical_fsm')
+                                            use_multiprocessing=True)
 
 
 if __name__ == '__main__':
