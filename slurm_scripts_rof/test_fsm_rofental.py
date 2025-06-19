@@ -148,23 +148,28 @@ def main(args):
 
     workflow.execute_entity_task(fsm_flowline_model_run, gdirs,
                                  climate_filename='climate_historical_fsm',
-                                 output_filesuffix='climate_historical_fsm',
+                                 output_filesuffix='_climate_historical_fsm',
                                  ys=y0, ye=y1)
+
     print("DONE running FSM")
-    exit()
 
     workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
     workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
     workflow.execute_entity_task(distribute_2d.distribute_thickness_from_simulation,
-                                 gdirs)
+                                 gdirs, input_filesuffix='_climate_historical_fsm')
 
     path_for_distributed_data = os.path.join(args.working_dir,
-                                             'distributed_data')
+                                             'distributed_data'+'_climate_historical_fsm')
 
     distribute_2d.merge_simulated_thickness(gdirs,
+                                            output_folder=path_for_distributed_data,
+                                            output_filename='all_merged_for_',
                                             add_topography=True,
                                             keep_dem_file=True,
-                                            use_multiprocessing=True)
+                                            use_multiprocessing=True,
+                                            simulation_filesuffix='_climate_historical_fsm')
+
+    print("DONE running distributed thickness")
 
 
 if __name__ == '__main__':
