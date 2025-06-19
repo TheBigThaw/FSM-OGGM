@@ -148,8 +148,10 @@ def main(args):
 
     workflow.execute_entity_task(fsm_flowline_model_run, gdirs,
                                  climate_filename='climate_historical_fsm',
+                                 output_filesuffix='climate_historical_fsm',
                                  ys=y0, ye=y1)
     print("DONE running FSM")
+    exit()
 
     workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
     workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
