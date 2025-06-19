@@ -1,9 +1,10 @@
 import argparse
-import numpy as np
+import os
 import geopandas as gpd
-import pandas as pd
+import xarray as xr
 from oggm import cfg, utils
 from oggm import workflow, tasks
+from oggm.sandbox import distribute_2d
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data, fsm_flowline_model_run
 
 def main(args):
@@ -114,6 +115,15 @@ def main(args):
     for task in elevation_band_task_list:
         workflow.execute_entity_task(task, gdirs)
 
+    # Distribute
+    workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
+
+    # Test that we have at least 21 variables on gridded_data.nc
+    gdir = gdirs[0]
+    with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds:
+        ds = ds.load()
+        assert len(ds.count().variables.keys()) == 21
+
     y0 = args.y0
     y1 = args.y1
 
@@ -140,6 +150,22 @@ def main(args):
                                  climate_filename='climate_historical_fsm',
                                  ys=y0, ye=y1)
     print("DONE running FSM")
+
+    workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
+    workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
+    workflow.execute_entity_task(distribute_2d.distribute_thickness_from_simulation,
+                                 gdirs)
+
+    path_for_distributed_data = os.path.join(args.working_dir,
+                                             'distributed_data')
+
+    distribute_2d.merge_simulated_thickness(gdirs,
+                                            output_folder=path_for_distributed_data,
+                                            add_topography=True,
+                                            keep_dem_file=True,
+                                            use_multiprocessing=True,
+                                            simulation_filesuffix='climate_historical_fsm')
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
