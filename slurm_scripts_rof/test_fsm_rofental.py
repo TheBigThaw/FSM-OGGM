@@ -2,6 +2,7 @@ import argparse
 import os
 import geopandas as gpd
 import xarray as xr
+import glob
 from oggm import cfg, utils
 from oggm import workflow, tasks
 from oggm.sandbox import distribute_2d
@@ -168,6 +169,17 @@ def main(args):
                                             keep_dem_file=True,
                                             use_multiprocessing=True,
                                             simulation_filesuffix='_climate_historical_fsm')
+
+    merged_files = sorted(glob.glob(os.path.join(path_for_distributed_data,
+                                                 'all_merged_for_' + '*_01.nc')))
+
+    f_path = os.path.join(path_for_distributed_data,
+                          "all_simulations_merged_for_climate_historical_fsm" + ".nc")
+
+    with xr.open_mfdataset(merged_files) as ds:
+        final_d = ds.load()
+
+    final_d.to_netcdf(f_path)
 
     print("DONE running distributed thickness")
 
