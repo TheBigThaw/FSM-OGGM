@@ -11,4 +11,4 @@
 --y0 1980
 --y1 2019
 --catchment_path /exports/csce/datastore/geos/users/brecinos/rofental_data_backup/02ee24e5-d25e-4aa6-b6a2-9d08a12992df_boundaries/deims_sites_boundariesPolygon.shp
-
+--simulation_name
