@@ -114,11 +114,12 @@ def main(args):
             calendar_month = dg_sim['time'].dt.month.values
             calendar_day = dg_sim['time'].dt.day.values
             time = dg_sim['time'].values
+            print(time)
             lat = np.repeat(np.nan, len(time))
             lon = np.repeat(np.nan, len(time))
             ice_melt_on_glacier = dg_sim.runoff_ice.values
-            snow_melt_on_glacier = dg_sim.snow_melt.values
-            id = np.repeat(rgi_id, len(time))
+            snow_melt_on_glacier = dg_sim.runoff_snow.values
+            id = np.repeat(gdir.rgi_id, len(time))
 
             row = {'RGIID': id,
                    'calendar_year': calendar_year,
