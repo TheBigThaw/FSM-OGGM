@@ -1,5 +1,5 @@
-import argparse
 from __future__ import division
+import argparse
 import logging
 import os
 import sys
@@ -193,11 +193,15 @@ def main(args):
 
     simulation_name = args.simulation_name
 
-    pattern = os.path.join(cfg.PATHS['working_dir'], simulation_name, "*all_simulations_merged*")
+    pattern = os.path.join(cfg.PATHS['working_dir'], 'distributed_data'+ simulation_name, "*all_simulations_merged*")
+    
+
+
     matched_files = sorted(glob.glob(pattern))
 
-    topo_file_pattern = os.path.join(cfg.PATHS['working_dir'], simulation_name, "*topo*")
+    topo_file_pattern = os.path.join(cfg.PATHS['working_dir'], 'distributed_data' + simulation_name, "*topo*")
     matched_dem = sorted(glob.glob(topo_file_pattern))
+
 
     # We process a single simulation at the time
     # OGGM thickness
@@ -229,11 +233,6 @@ def main(args):
         file_names.append(os.path.join(intermediate_files_dir,
                                        'terminus_tracking_' + str(y) + '_' + simulation_name + '.csv'))
 
-    print(file_names)
-    print(dfs)
-    print(geopandas_file)
-    exit()
-
     print("Starting multiprocessing" if args.use_multiprocessing else "Running serial.")
     if args.use_multiprocessing:
         with multiprocessing.Pool(processes=args.mp_processes) as pool:
@@ -244,10 +243,12 @@ def main(args):
 
     matching_files = []
     for filename in os.listdir(output_dir):
-        if re.match('run_off_daily_and_terminus_position_' + simulation_name, filename):
+        if re.match('run_off_daily_and_terminus_position' + simulation_name, filename):
+            print(filename)
             matching_files.append(filename)
 
-    file_to_change = os.path.join(output_dir, matching_files)
+    print(matching_files)
+    file_to_change = os.path.join(output_dir, matching_files[0])
     print(file_to_change)
 
     # df_new = xr.open_dataset(file_to_change)
