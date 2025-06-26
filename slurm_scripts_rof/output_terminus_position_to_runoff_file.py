@@ -101,7 +101,7 @@ def extract_terminus_position_per_year(topo_year,
 
 ## Define main function
 def main(args):
-    reset = args.reset
+    reset = False
 
     cfg.initialize(logging_level='DEBUG')
 
