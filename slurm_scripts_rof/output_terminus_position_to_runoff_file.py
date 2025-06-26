@@ -31,6 +31,17 @@ log = logging.getLogger(__name__)
 start = time.time()
 
 ## Define helper functions
+def wait_for_file(path, timeout=60):
+    start = time.time()
+    while not os.path.exists(path):
+        if time.time() - start > timeout:
+            raise TimeoutError(f"File {path} not found within {timeout} seconds.")
+        time.sleep(1)
+
+def wait_for_multiple_files(filepaths, timeout=60):
+    for f in filepaths:
+        wait_for_file(f, timeout)
+
 def extract_terminus_position_per_year(topo_year,
                                        centerlines_fpath=None,
                                        output_fpath=None,
@@ -121,7 +132,7 @@ def main(args):
     base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
                 'gdirs/oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5_w_data/')
 
-    fr = utils.get_rgi_region_file(11, version='62', reset=reset)
+    fr = utils.get_rgi_region_file(11, version='62', reset=False)
     gdf = gpd.read_file(fr)
 
     catchment_path = args.catchment_path
@@ -139,23 +150,17 @@ def main(args):
     else:
         selection = rof_sel
 
-    if reset:
-        gdirs = workflow.init_glacier_directories(selection,
-                                                  from_prepro_level=3,
-                                                  prepro_base_url=base_url,
-                                                  reset=reset,
-                                                  force=reset)
-    else:
-        gdirs = workflow.init_glacier_directories(selection)
+    # Here we never need to reset the working directory since we start
+    # from a working dir where simulations have been run before
+    gdirs = workflow.init_glacier_directories(selection)
 
     # Let's make a directory for CEH data and file formats
     output_dir = os.path.join(cfg.PATHS['working_dir'],
                               '02_run_off_terminus_position')
+    os.makedirs(output_dir, exist_ok=True)
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    if not os.path.exists(os.path.join(output_dir, 'Rofental_Centerlines.shp')):
+    shp_path = os.path.join(output_dir, 'Rofental_Centerlines.shp')
+    if not os.path.exists(shp_path):
         # We recompute geometry in each glacier dir,
         # so we can get centerlines in a shapefile
         list_talks = [
@@ -166,15 +171,23 @@ def main(args):
             # The order matters!
             workflow.execute_entity_task(task, gdirs)
 
+        # Remove from gdirs those that dont have thickness distribution due to errors
+
+
         write_centerlines_to_shape(gdirs,  # The glaciers to process
-                                   path=os.path.join(output_dir, 'Rofental_Centerlines.shp'),  # The output file
+                                   path=shp_path,  # The output file
                                    to_tar=False,  # set to True to put everything into one single tar file
                                    to_crs=selection.crs,  # Write into the projection of the original inventory
                                    keep_main_only=True,  # Write only the main flowline and discard the tributaries
                                    )
 
+        print("Shapefile written, waiting for file sync...")
+        base = shp_path[:-4]
+        wait_for_multiple_files([f"{base}{ext}" for ext in ['.shp', '.dbf', '.shx', '.prj']])
+
     # We read the data that we need
     # Shapefile with all centrelines
+    print("Reading centerlines...")
     centerlines = gpd.read_file(os.path.join(output_dir, 'Rofental_Centerlines.shp'))
     centerlines['coords'] = centerlines.geometry.apply(lambda geom: list(geom.coords))
 
@@ -206,30 +219,28 @@ def main(args):
     gpd_file = os.path.join(output_dir, 'Rofental_Centerlines.shp')
     geopandas_file = np.repeat(gpd_file, len(years))
 
-    intermediate_files_dir = output_dir + '/intermediate_files/' + simulation_name
-
-    if not os.path.exists(intermediate_files_dir):
-        os.makedirs(intermediate_files_dir)
+    intermediate_files_dir = os.path.join(output_dir,
+                                          'intermediate_files',
+                                          simulation_name)
+    os.makedirs(intermediate_files_dir, exist_ok=True)
 
     file_names = []
     for y in years:
         file_names.append(os.path.join(intermediate_files_dir,
                                        'terminus_tracking_' + str(y) + '_' + simulation_name + '.csv'))
 
-    print('We are about to deploy multiprocessing')
+    print(file_names)
+    print(dfs)
+    print(geopandas_file)
+    exit()
 
+    print("Starting multiprocessing" if args.use_multiprocessing else "Running serial.")
     if args.use_multiprocessing:
-        print(f'Using multiprocessing with {args.mp_processes} processes.')
         with multiprocessing.Pool(processes=args.mp_processes) as pool:
-            result = pool.starmap(extract_terminus_position_per_year,
-                                  zip(dfs, geopandas_file, file_names))
-            pool.close()
-            pool.join()
+            result = pool.starmap(extract_terminus_position_per_year, zip(dfs, geopandas_file, file_names))
     else:
-        print('Running without multiprocessing.')
-        result = []
-        for topo, gdf, fname in zip(dfs, geopandas_file, file_names):
-            result.append(extract_terminus_position_per_year(topo, gdf, fname))
+        result = [extract_terminus_position_per_year(topo, gdf, fname)
+                  for topo, gdf, fname in zip(dfs, geopandas_file, file_names)]
 
     matching_files = []
     for filename in os.listdir(output_dir):
@@ -237,27 +248,28 @@ def main(args):
             matching_files.append(filename)
 
     file_to_change = os.path.join(output_dir, matching_files)
+    print(file_to_change)
 
-    df_new = xr.open_dataset(file_to_change)
-
-    rgi_ids = df_new.RGIID.values
-
-    i = np.arange(len(years))
-
-    for year, file, t_index in zip(years, file_names, i):
-        df = pd.read_csv(file)
-
-        for rgiid in df_new.RGIID.values:
-            key = (str(rgiid), pd.Timestamp(f"{year}-01-01"))
-            if key in df.index:
-                dpg = df.loc['key']
-                df_new['lat'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lat'].values[0]
-                df_new['lon'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lon'].values[0]
-
-    os.remove(file_to_change)
-    df_new.to_netcdf(file_to_change)
-
-    shutil.rmtree(intermediate_files_dir, ignore_errors=True)
+    # df_new = xr.open_dataset(file_to_change)
+    #
+    # rgi_ids = df_new.RGIID.values
+    #
+    # i = np.arange(len(years))
+    #
+    # for year, file, t_index in zip(years, file_names, i):
+    #     df = pd.read_csv(file)
+    #
+    #     for rgiid in df_new.RGIID.values:
+    #         key = (str(rgiid), pd.Timestamp(f"{year}-01-01"))
+    #         if key in df.index:
+    #             dpg = df.loc['key']
+    #             df_new['lat'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lat'].values[0]
+    #             df_new['lon'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lon'].values[0]
+    #
+    # os.remove(file_to_change)
+    # df_new.to_netcdf(file_to_change)
+    #
+    # shutil.rmtree(intermediate_files_dir, ignore_errors=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
@@ -275,7 +287,6 @@ if __name__ == '__main__':
     parser.add_argument('--y1', type=int, default=2019)
     parser.add_argument('--catchment_path', type=str, default='')
     parser.add_argument('--simulation_name', type=str, default='')
-
 
     args = parser.parse_args()
     main(args)

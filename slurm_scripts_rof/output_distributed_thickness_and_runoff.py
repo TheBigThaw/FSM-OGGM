@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 import glob
 from oggm import cfg, utils
-from oggm import workflow, tasks
+from oggm import workflow
 from oggm.sandbox import distribute_2d
 
 ## Define main function
@@ -114,7 +114,6 @@ def main(args):
             calendar_month = dg_sim['time'].dt.month.values
             calendar_day = dg_sim['time'].dt.day.values
             time = dg_sim['time'].values
-            print(time)
             lat = np.repeat(np.nan, len(time))
             lon = np.repeat(np.nan, len(time))
             ice_melt_on_glacier = dg_sim.runoff_ice.values
