@@ -103,85 +103,85 @@ def main(args):
     else:
         gdirs = workflow.init_glacier_directories(selection)
 
-    elevation_band_task_list = [
-        tasks.simple_glacier_masks,
-        tasks.elevation_band_flowline,
-        tasks.fixed_dx_elevation_band_flowline,
-        tasks.compute_downstream_line,
-        tasks.compute_downstream_bedshape,
-        tasks.gridded_attributes,
-        tasks.gridded_mb_attributes,
-    ]
-
-    print('multiprocessing' + str(cfg.PARAMS['use_multiprocessing']))
-
-    for task in elevation_band_task_list:
-        workflow.execute_entity_task(task, gdirs)
-
-    # Distribute
-    workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
-
-    # Test that we have at least 21 variables on gridded_data.nc
-    gdir = gdirs[0]
-    with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds:
-        ds = ds.load()
-        assert len(ds.count().variables.keys()) == 21
-
-    y0 = args.y0
-    y1 = args.y1
-
-    workflow.execute_entity_task(process_wfde5_data, gdirs, y0=str(y0), y1=str(y1))
-    print("DONE PROCESSING wfde5 data")
-
-    workflow.execute_entity_task(tasks.apparent_mb_from_any_mb,
-                                 gdirs,
-                                 mb_model_class=FactorialSnowpackModel)
-
-    workflow.calibrate_inversion_from_consensus(
-        gdirs,
-        apply_fs_on_mismatch=True,
-        error_on_mismatch=True,  # if you're running many glaciers some might not work
-        filter_inversion_output=True,  # this partly filters the over deepening due to
-        #    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
-        volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
-    )
-
-    # finally create the dynamic flowlines
-    workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
-
-    workflow.execute_entity_task(fsm_flowline_model_run, gdirs,
-                                 climate_filename='climate_historical_fsm',
-                                 output_filesuffix='_climate_historical_fsm',
-                                 ys=y0, ye=y1)
-
-    print("DONE running FSM")
-
-    workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
-    workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
-    workflow.execute_entity_task(distribute_2d.distribute_thickness_from_simulation,
-                                 gdirs, input_filesuffix='_climate_historical_fsm')
-
-    path_for_distributed_data = os.path.join(args.working_dir,
-                                             'distributed_data'+'_climate_historical_fsm')
-
-    distribute_2d.merge_simulated_thickness(gdirs,
-                                            output_folder=path_for_distributed_data,
-                                            output_filename='all_merged_for_',
-                                            add_topography=True,
-                                            keep_dem_file=True,
-                                            use_multiprocessing=True,
-                                            simulation_filesuffix='_climate_historical_fsm')
-
-    merged_files = sorted(glob.glob(os.path.join(path_for_distributed_data,
-                                                 'all_merged_for_' + '*_01.nc')))
-
-    f_path = os.path.join(path_for_distributed_data,
-                          "all_simulations_merged_for_climate_historical_fsm" + ".nc")
-
-    with xr.open_mfdataset(merged_files) as ds:
-        final_d = ds.load()
-
-    final_d.to_netcdf(f_path)
+    # elevation_band_task_list = [
+    #     tasks.simple_glacier_masks,
+    #     tasks.elevation_band_flowline,
+    #     tasks.fixed_dx_elevation_band_flowline,
+    #     tasks.compute_downstream_line,
+    #     tasks.compute_downstream_bedshape,
+    #     tasks.gridded_attributes,
+    #     tasks.gridded_mb_attributes,
+    # ]
+    #
+    # print('multiprocessing' + str(cfg.PARAMS['use_multiprocessing']))
+    #
+    # for task in elevation_band_task_list:
+    #     workflow.execute_entity_task(task, gdirs)
+    #
+    # # Distribute
+    # workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
+    #
+    # # Test that we have at least 21 variables on gridded_data.nc
+    # gdir = gdirs[0]
+    # with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds:
+    #     ds = ds.load()
+    #     assert len(ds.count().variables.keys()) == 21
+    #
+    # y0 = args.y0
+    # y1 = args.y1
+    #
+    # workflow.execute_entity_task(process_wfde5_data, gdirs, y0=str(y0), y1=str(y1))
+    # print("DONE PROCESSING wfde5 data")
+    #
+    # workflow.execute_entity_task(tasks.apparent_mb_from_any_mb,
+    #                              gdirs,
+    #                              mb_model_class=FactorialSnowpackModel)
+    #
+    # workflow.calibrate_inversion_from_consensus(
+    #     gdirs,
+    #     apply_fs_on_mismatch=True,
+    #     error_on_mismatch=True,  # if you're running many glaciers some might not work
+    #     filter_inversion_output=True,  # this partly filters the over deepening due to
+    #     #    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
+    #     volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
+    # )
+    #
+    # # finally create the dynamic flowlines
+    # workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
+    #
+    # workflow.execute_entity_task(fsm_flowline_model_run, gdirs,
+    #                              climate_filename='climate_historical_fsm',
+    #                              output_filesuffix='_climate_historical_fsm',
+    #                              ys=y0, ye=y1)
+    #
+    # print("DONE running FSM")
+    #
+    # workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
+    # workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
+    # workflow.execute_entity_task(distribute_2d.distribute_thickness_from_simulation,
+    #                              gdirs, input_filesuffix='_climate_historical_fsm')
+    #
+    # path_for_distributed_data = os.path.join(args.working_dir,
+    #                                          'distributed_data'+'_climate_historical_fsm')
+    #
+    # distribute_2d.merge_simulated_thickness(gdirs,
+    #                                         output_folder=path_for_distributed_data,
+    #                                         output_filename='all_merged_for_',
+    #                                         add_topography=True,
+    #                                         keep_dem_file=True,
+    #                                         use_multiprocessing=True,
+    #                                         simulation_filesuffix='_climate_historical_fsm')
+    #
+    # merged_files = sorted(glob.glob(os.path.join(path_for_distributed_data,
+    #                                              'all_merged_for_' + '*_01.nc')))
+    #
+    # f_path = os.path.join(path_for_distributed_data,
+    #                       "all_simulations_merged_for_climate_historical_fsm" + ".nc")
+    #
+    # with xr.open_mfdataset(merged_files) as ds:
+    #     final_d = ds.load()
+    #
+    # final_d.to_netcdf(f_path)
 
     print("DONE running distributed thickness postprocessing")
     print("Now we start post-processing runoff")
