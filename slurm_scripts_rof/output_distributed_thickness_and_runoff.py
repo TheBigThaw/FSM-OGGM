@@ -75,11 +75,6 @@ def main(args):
 
     simulation_name = args.simulation_name
 
-    workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
-    workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
-    workflow.execute_entity_task(distribute_2d.distribute_thickness_from_simulation,
-                                 gdirs, input_filesuffix=simulation_name)
-
     path_for_distributed_data = os.path.join(args.working_dir,
                                              'distributed_data' + simulation_name)
 
