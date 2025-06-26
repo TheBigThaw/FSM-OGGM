@@ -41,9 +41,6 @@ def main(args):
     cfg.PARAMS['store_model_geometry'] = True
     cfg.PARAMS['store_fl_diagnostics'] = True
 
-    base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
-                'gdirs/oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5_w_data/')
-
     fr = utils.get_rgi_region_file(11, version='62', reset=False)
     gdf = gpd.read_file(fr)
 
@@ -86,10 +83,10 @@ def main(args):
                                             use_multiprocessing=True,
                                             simulation_filesuffix=simulation_name)
 
-    merged_files = sorted(glob.glob(os.path.join(path_for_distributed_data,
+    merged_files = sorted(glob.glob(os.path.join(str(path_for_distributed_data),
                                                  'all_merged_for_' + '*_01.nc')))
 
-    f_path = os.path.join(path_for_distributed_data,
+    f_path = os.path.join(str(path_for_distributed_data),
                           "all_simulations_merged_for"+ simulation_name + ".nc")
 
     with xr.open_mfdataset(merged_files) as ds:
@@ -103,33 +100,38 @@ def main(args):
     dfinal = pd.DataFrame()
 
     for gdir in gdirs:
-        with xr.open_dataset(gdir.get_filepath('FSM_runoff')) as dg:
-            dg_sim = dg.load()
+        runoff_path = gdir.get_filepath('FSM_runoff')
+        if os.path.exists(runoff_path):
+            with xr.open_dataset(gdir.get_filepath('FSM_runoff')) as dg:
+                dg_sim = dg.load()
 
-        calendar_year = dg_sim['time'].dt.year.values
-        calendar_month = dg_sim['time'].dt.month.values
-        calendar_day = dg_sim['time'].dt.day.values
-        time = dg_sim['time'].values
-        lat = np.repeat(np.nan, len(time))
-        lon = np.repeat(np.nan, len(time))
-        ice_melt_on_glacier = dg_sim.runoff_ice.values
-        snow_melt_on_glacier = dg_sim.snow_melt.values
-        id = np.repeat(rgi_id, len(time))
+            calendar_year = dg_sim['time'].dt.year.values
+            calendar_month = dg_sim['time'].dt.month.values
+            calendar_day = dg_sim['time'].dt.day.values
+            time = dg_sim['time'].values
+            lat = np.repeat(np.nan, len(time))
+            lon = np.repeat(np.nan, len(time))
+            ice_melt_on_glacier = dg_sim.runoff_ice.values
+            snow_melt_on_glacier = dg_sim.snow_melt.values
+            id = np.repeat(rgi_id, len(time))
 
-        row = {'RGIID': id,
-               'calendar_year': calendar_year,
-               'calendar_month': calendar_month,
-               'calendar_day': calendar_day,
-               'time': time,
-               'lat': lat,
-               'lon': lon,
-               'ice_melt_on_glacier_daily': ice_melt_on_glacier,
-               'snow_melt_on_glacier_daily': snow_melt_on_glacier,
-               }
+            row = {'RGIID': id,
+                   'calendar_year': calendar_year,
+                   'calendar_month': calendar_month,
+                   'calendar_day': calendar_day,
+                   'time': time,
+                   'lat': lat,
+                   'lon': lon,
+                   'ice_melt_on_glacier_daily': ice_melt_on_glacier,
+                   'snow_melt_on_glacier_daily': snow_melt_on_glacier,
+                   }
 
-        df = pd.DataFrame(row)
-        df = df.set_index(['RGIID', 'time'])
-        dfinal = pd.concat([dfinal, df])
+            df = pd.DataFrame(row)
+            df = df.set_index(['RGIID', 'time'])
+            dfinal = pd.concat([dfinal, df])
+        else:
+            print("No runoff data for check log in gdir to see what went wrong", gdir)
+            continue
 
     ds_runoff = dfinal.to_xarray()
 
