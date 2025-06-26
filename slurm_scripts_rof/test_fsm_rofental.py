@@ -246,6 +246,7 @@ if __name__ == '__main__':
     parser.add_argument('--y0', type=int, default=1980)
     parser.add_argument('--y1', type=int, default=2019)
     parser.add_argument('--catchment_path', type=str, default='')
+    parser.add_argument('--simulation_name', type=str, default='')
 
     args = parser.parse_args()
     main(args)
