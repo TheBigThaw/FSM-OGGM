@@ -2,25 +2,18 @@ from __future__ import division
 import argparse
 import logging
 import os
-import sys
 import glob
 import geopandas as gpd
-from configobj import ConfigObj
 import xarray as xr
-import pandas as pd
 import salem
-from collections import defaultdict
-import numpy as np
 import multiprocessing
 import re
 import shutil
 
 import numpy as np
-import pickle
 import pandas as pd
 import pyproj
 from salem import wgs84
-from scipy.interpolate import griddata
 from oggm.exceptions import InvalidWorkflowError
 
 # Time
@@ -128,9 +121,6 @@ def main(args):
     cfg.PARAMS['compress_climate_netcdf'] = False
     cfg.PARAMS['store_model_geometry'] = True
     cfg.PARAMS['store_fl_diagnostics'] = True
-
-    base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
-                'gdirs/oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5_w_data/')
 
     fr = utils.get_rgi_region_file(11, version='62', reset=False)
     gdf = gpd.read_file(fr)
@@ -244,33 +234,28 @@ def main(args):
     matching_files = []
     for filename in os.listdir(output_dir):
         if re.match('run_off_daily_and_terminus_position' + simulation_name, filename):
-            print(filename)
             matching_files.append(filename)
 
-    print(matching_files)
     file_to_change = os.path.join(output_dir, matching_files[0])
-    print(file_to_change)
 
-    # df_new = xr.open_dataset(file_to_change)
-    #
-    # rgi_ids = df_new.RGIID.values
-    #
-    # i = np.arange(len(years))
-    #
-    # for year, file, t_index in zip(years, file_names, i):
-    #     df = pd.read_csv(file)
-    #
-    #     for rgiid in df_new.RGIID.values:
-    #         key = (str(rgiid), pd.Timestamp(f"{year}-01-01"))
-    #         if key in df.index:
-    #             dpg = df.loc['key']
-    #             df_new['lat'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lat'].values[0]
-    #             df_new['lon'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lon'].values[0]
-    #
-    # os.remove(file_to_change)
-    # df_new.to_netcdf(file_to_change)
-    #
-    # shutil.rmtree(intermediate_files_dir, ignore_errors=True)
+    df_new = xr.open_dataset(file_to_change)
+
+    i = np.arange(len(years))
+
+    for year, file, t_index in zip(years, file_names, i):
+        df = pd.read_csv(file)
+
+        for rgiid in df_new.RGIID.values:
+            key = (str(rgiid), pd.Timestamp(f"{year}-01-01"))
+            if key in df.index:
+                dpg = df.loc['key']
+                df_new['lat'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lat'].values[0]
+                df_new['lon'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lon'].values[0]
+
+    os.remove(file_to_change)
+    df_new.to_netcdf(file_to_change)
+
+    #shutil.rmtree(intermediate_files_dir, ignore_errors=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
