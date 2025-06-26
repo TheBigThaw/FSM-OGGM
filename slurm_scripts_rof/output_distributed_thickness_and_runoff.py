@@ -41,6 +41,11 @@ def main(args):
     cfg.PARAMS['store_model_geometry'] = True
     cfg.PARAMS['store_fl_diagnostics'] = True
 
+    _doc = ('A netcdf file containing dates and ' +
+            'ice-based and snow-based runoff volume ' +
+            'for each date interval')
+    cfg.BASENAMES['FSM_runoff'] = ('FSM_runoff.nc', _doc)
+
     fr = utils.get_rgi_region_file(11, version='62', reset=False)
     gdf = gpd.read_file(fr)
 
