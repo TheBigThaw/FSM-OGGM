@@ -17,6 +17,7 @@ mamba activate oggm_fsm
 
 export PYTHONPATH="/exports/csce/datastore/geos/users/brecinos/FSM-OGGM:$PYTHONPATH"
 
-#python test_fsm_rofental.py $(<params.txt)
-#python output_distributed_thickness_and_runoff.py $(<params.txt)
+python test_fsm_rofental.py $(<params.txt)
+python output_distributed_thickness_and_runoff.py $(<params.txt)
 python output_terminus_position_to_runoff_file.py $(<params.txt)
+python output_area_change_shapefiles.py $(<params.txt)
