@@ -71,6 +71,9 @@ def extract_terminus_position_per_year(topo_year,
         # For the entire flowline
         x_all, y_all = salem.gis.transform_proj(wgs84, raster_proj, x, y)
         elev_fls = ds_fls.interp(x=np.array(x_all), y=np.array(y_all), method='nearest')
+        if elev_fls is None or elev_fls.count() == 0:
+            print(f"Skipping glacier {rgi_id.values[0]}: no valid elevation data in this year.")
+            continue
         terminus = elev_fls.where(elev_fls == elev_fls.min(skipna=True), drop=True)
 
         if len(terminus) > 0:
@@ -208,7 +211,12 @@ def main(args):
 
     # Let's prepare arrays to deploy in a multiprocessing workflow per year
     years = doggm.time.values.astype(int)
-    dfs = [topo_smooth.where(doggm.area_mask.sel(time=year) == 1) for year in years]
+    dfs = []
+    for year in years:
+        mask = doggm.area_mask.sel(time=year)
+        topo_masked = topo_smooth.where(mask == 1)
+        dfs.append(topo_masked)
+    #dfs = [topo_smooth.where(doggm.area_mask.sel(time=year) == 1) for year in years]
 
     gpd_file = os.path.join(output_dir, 'Rofental_Centerlines.shp')
     geopandas_file = np.repeat(gpd_file, len(years))
