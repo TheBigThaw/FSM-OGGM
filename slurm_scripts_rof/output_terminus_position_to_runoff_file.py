@@ -202,8 +202,6 @@ def main(args):
 
     # OGGM topo
     doggm_elevation = salem.open_xr_dataset(matched_dem[0])
-
-    glacier_mask = doggm_elevation.glacier_mask
     topo_smooth = doggm_elevation.topo_smoothed
 
     doggm['area_mask'] = (doggm.simulated_thickness > 0)
@@ -231,9 +229,6 @@ def main(args):
         file_names.append(os.path.join(intermediate_files_dir,
                                        'terminus_tracking_' + str(y) + '_' + simulation_name + '.csv'))
 
-    #print(file_names)
-    #print(dfs)
-    #exit()
 
     print("Starting multiprocessing" if args.use_multiprocessing else "Running serial.")
     if args.use_multiprocessing:
