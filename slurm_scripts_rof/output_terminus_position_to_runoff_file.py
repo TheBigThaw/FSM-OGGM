@@ -231,10 +231,15 @@ def main(args):
         file_names.append(os.path.join(intermediate_files_dir,
                                        'terminus_tracking_' + str(y) + '_' + simulation_name + '.csv'))
 
+    #print(file_names)
+    #print(dfs)
+    #exit()
+
     print("Starting multiprocessing" if args.use_multiprocessing else "Running serial.")
     if args.use_multiprocessing:
         with multiprocessing.Pool(processes=args.mp_processes) as pool:
             result = pool.starmap(extract_terminus_position_per_year, zip(dfs, geopandas_file, file_names))
+            print(result)
     else:
         result = [extract_terminus_position_per_year(topo, gdf, fname)
                   for topo, gdf, fname in zip(dfs, geopandas_file, file_names)]
@@ -243,7 +248,7 @@ def main(args):
     for filename in os.listdir(output_dir):
         if re.match('run_off_daily_and_terminus_position' + simulation_name, filename):
             matching_files.append(filename)
-
+    print(matching_files)
     file_to_change = os.path.join(output_dir, matching_files[0])
 
     df_new = xr.open_dataset(file_to_change)
