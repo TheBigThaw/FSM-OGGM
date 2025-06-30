@@ -16,11 +16,20 @@ cfg.PARAMS['border'] = 80
 cfg.PARAMS['FSM_interpolate_bnds'] = False
 cfg.PARAMS['FSM_save_runoff'] = True
 cfg.PARAMS['FSM_runoff_frequency'] = 'D'
-#cfg.PARAMS['FSM_param_asmx'] = .99
 _doc = ('A netcdf file containing dates and ' + 
         'ice-based and snow-based runoff volume ' + 
         'for each date interval')
 cfg.BASENAMES['FSM_runoff'] = ('FSM_runoff.nc',_doc)
+
+# The following is the preferred way to add FSM parameters to the input namelist
+# settings from R Essery 26/6/25
+
+cfg.PARAMS['FSM_param_asmn'] = 0.6           # Minimum albedo for melting snow
+cfg.PARAMS['FSM_param_aice'] = 0.5           # Ice albedo
+cfg.PARAMS['FSM_param_Plapse'] = 0.          # Precipitation adjustment factor (1/m)
+cfg.PARAMS['FSM_param_Pf'] = 1.2             # Precipitation factor
+cfg.PARAMS['FSM_param_Tlapse'] = 6.5e-3      # Temperature lapse rate (K/m)
+cfg.PARAMS['FSM_param_sigmoidDscale'] = 0    # sigmoid fn for solid fraction
 
 # the following if True means FSM will be run with a fixed # of columns
 # independent on the number of glacier sectoins/elev bands. These
@@ -122,9 +131,16 @@ for task in elevation_band_task_list:
     workflow.execute_entity_task(task, gdirs)
 
 
+
 workflow.execute_entity_task(process_wfde5_data, gdirs, y0='1980', y1='2019')
 print ("DONE PROCESSING wfde5 data")
 workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs, mb_model_class=FactorialSnowpackModel)
+
+# for debugging -- to delete when merged
+#fsm = FactorialSnowpackModel(gdirs[0])
+#fls = gdirs[0].read_pickle('model_flowlines')
+#mb80 = fsm.get_annual_mb(year=1980, fls=fls, reset_state=True)
+#mb18 = fsm.get_annual_mb(year=2018, fls=fls, reset_state=True)
 
 workflow.calibrate_inversion_from_consensus(
     gdirs,

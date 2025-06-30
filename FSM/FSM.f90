@@ -285,7 +285,13 @@ real :: &
 real :: &
   elapse,            &! Vapour pressure lapse rate (1/m)
   Plapse,            &! Precipitation adjustment factor (1/m)
-  Tlapse              ! Temperature laspe rate (K/m)
+  Tlapse,            &! Temperature laspe rate (K/m)
+  Pf                  ! Precipitation multiplier
+
+integer:: &
+  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
+
+
   
 end module PARAMETERS
 
@@ -298,7 +304,7 @@ implicit none
 namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
                   tmlt,trho,Wirr,z0sn,                                 &
                   aice,z0ic,                                           &
-                  elapse,Plapse,Tlapse
+                  elapse,Plapse,Tlapse, Pf, sigmoidDscale
 
 ! Snow parameters
   asmx = 0.85         ! Maximum albedo for fresh snow
@@ -324,6 +330,8 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
   elapse = 0.         ! Vapour pressure lapse rate (1/m)
   Plapse = 0.35e-3    ! Precipitation adjustment factor (1/m)
   Tlapse = 5.7e-3     ! Temperature laspe rate (K/m)
+  Pf = 1.0            ! Precipitation multiplier
+  sigmoidDscale = 1   ! sigmoid fn for solid fraction (1 or 0)
   
 open(8,file='nlst') 
 read(8,params)
@@ -343,7 +351,9 @@ use CONSTANTS, only: &
 use PARAMETERS, only: &
   elapse,            &! Vapour pressure laps rate (1/m)
   Plapse,            &! Precipitation adjustment factor (1/m)
-  Tlapse              ! Temperature lapse rate (K/m)
+  Tlapse,            &! Temperature lapse rate (K/m)
+  Pf,                &! precip fac
+  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
 
 implicit none
 
@@ -371,7 +381,7 @@ real, intent(out) :: &
   Uaz                 ! Wind speed (m/s)
   
 real :: &
-  fs,                &! Snow fraction
+  fs,fs0,fs1,        &! Snow fraction
   Pr,                &! Precipitation rate (kg/m2/s)
   Qs                  ! Saturation specific humidity
 
@@ -386,8 +396,11 @@ Taz = Ta - Tlapse*dz
 call QSAT(Psz,Taz,Qs)
 Qaz = min(Qa,Qs)
 Pr = Rf + Sf
-Pr = Pr*(1 + Plapse*dz)/(1 - Plapse*dz)
-fs = 1 / (1 + exp((Ta - Tm - 1.6)/1))
+Pr = Pr*Pf*(1 + Plapse*dz)/(1 - Plapse*dz)
+fs1 = 1 / (1 + exp((Ta - Tm - 1.6)/1))
+fs0 = 1 - 0.5*(Taz - 273.15)
+fs0 = min(1.,max(fs0,0.))
+fs = sigmoidDscale * fs1 + (1-sigmoidDscale) * fs0
 Rfz = (1 - fs)*Pr
 Sfz = fs*Pr
 
@@ -410,7 +423,7 @@ real :: &
   Dice(Nice),       &! Ice layer thicknesses (m)
   Dmin(Nsmx)         ! Minimum snow layer thicknesses (m)
 
-! Meteorological variables
+! Meteoroeogical variables
 real, intent(in) :: &
   LW,                &! Incoming longwave radiation (W/m2)
   Ps,                &! Surface pressure (Pa)
