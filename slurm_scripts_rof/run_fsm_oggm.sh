@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --account=geos_extra  # Ensure the job runs in the correct queue
+#SBATCH --account=  # Ensure the job runs in the correct queue
 #SBATCH --nodelist=forth03
 #SBATCH --output=slurm_log.out
 #SBATCH --error=slurm_log.err
@@ -9,13 +9,15 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16  # Adjust CPU allocation if needed
 #SBATCH --mail-type=ALL  # Notifications for job begin, end, and failure
-#SBATCH --mail-user=beatriz.recinos@ed.ac.uk  # Email for notifications
+#SBATCH --mail-user=  # Email for notifications
 
 # Load necessary modules (if required)
 source ~/.bashrc
 mamba activate oggm_fsm
 
-export PYTHONPATH="/exports/csce/datastore/geos/users/brecinos/FSM-OGGM:$PYTHONPATH"
+SCRIPT_DIR="$(pwd)"
+ROOT_DIR="$(realpath "$SCRIPT_DIR/..")"
+export PYTHONPATH="$ROOT_DIR:$PYTHONPATH"
 
 python test_fsm_rofental.py $(<params.txt)
 python output_distributed_thickness_and_runoff.py $(<params.txt)
