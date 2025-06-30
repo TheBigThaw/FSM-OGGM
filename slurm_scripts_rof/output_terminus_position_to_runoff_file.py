@@ -149,7 +149,7 @@ def main(args):
 
     # Let's make a directory for CEH data and file formats
     output_dir = os.path.join(cfg.PATHS['working_dir'],
-                              '02_run_off_terminus_position')
+                              'run_off_terminus_position')
     os.makedirs(output_dir, exist_ok=True)
 
     shp_path = os.path.join(output_dir, 'Rofental_Centerlines.shp')

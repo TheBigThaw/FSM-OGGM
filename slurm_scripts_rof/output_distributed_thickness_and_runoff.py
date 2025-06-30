@@ -70,7 +70,7 @@ def main(args):
 
     # Let's make a directory for CEH data and file formats
     output_dir = os.path.join(cfg.PATHS['working_dir'],
-                              '02_run_off_terminus_position')
+                              'run_off_terminus_position')
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

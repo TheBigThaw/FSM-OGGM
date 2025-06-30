@@ -104,7 +104,7 @@ def main(args):
 
     # Let's make a directory for CEH data and file formats
     output_dir = os.path.join(cfg.PATHS['working_dir'],
-                              '03_area_evolution/'+simulation_name)
+                              'area_evolution/'+simulation_name)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
