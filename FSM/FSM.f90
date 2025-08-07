@@ -336,7 +336,7 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
 open(8,file='nlst') 
 read(8,params)
 close(8)
-  
+
 end subroutine SET_PARAMETERS
 
 !-----------------------------------------------------------------------
@@ -545,16 +545,16 @@ Mice = (Melt + Esrf)*dt
 ! DNG in Main branch, Roff is not set to Melt as it is here
 RofI = Melt*dt
 
-! DNG from conv with Richard, the loop below is not needed
-!do k = 1, Nice
-!  Tice(k) = Tice(k) + dTice(k)
-!  if (Tice(k) > Tm) then
+do k = 1, Nice
+ Tice(k) = Tice(k) + dTice(k)
+! DNG from conv with Richard, the lines below is not needed
+! if (Tice(k) > Tm) then
 !    Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
 !    Mice = Mice + Melt*dt
 !    RofI = RofI + Melt*dt
 !    Tice(k) = Tm
-!  end if
-!end do
+! end if
+end do
 
 end subroutine ICE
 

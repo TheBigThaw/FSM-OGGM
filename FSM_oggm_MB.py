@@ -675,6 +675,30 @@ class FactorialSnowpackModel(MassBalanceModel):
             roffgl = np.zeros(Nroff) # kg
             roffsn = np.zeros(Nroff)
 
+        if hasattr(fls[0],'bed_h'):
+            print(str(year))
+            if ((year==1980) | (year>2017)):
+                print ('got here')
+                import pandas as pd
+                import matplotlib.pyplot as plt
+                ds = pd.read_csv('/home/dgoldber/Downloads/mb.csv')
+                zR = ds.z.values
+                r1980=ds['1980-1981'].values
+                r2018=ds['2018-2019'].values
+            
+                if(year==1980):
+                    rec = r1980
+                else:
+                    rec = r2018
+
+                plt.plot(rec,zR,'r',label='fsm only')
+
+                plt.plot(mbloc,heights[:Nseg],'b',label='coupled')
+                plt.title(str(year))
+                plt.legend()
+                plt.savefig('mbcomp_' + str(year) + '.png')
+                plt.close('all')
+
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         if year is None:
             baseline_y = np.max(self.years) - np.min(self.years) + 1

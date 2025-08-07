@@ -44,7 +44,7 @@ cfg.PARAMS['FSM_Nbnds'] = 15
 
 # if True, this will run FSM for one year when FactorialSnowpackModel is 
 # initiated, and the results will be the saved "initial state"
-cfg.PARAMS['FSM_spinup'] = True
+cfg.PARAMS['FSM_spinup'] = False
 
 # Here is how an FSM parameter (asmx) is set. this will create a 
 # namelist entry with the value equal to the default
@@ -156,7 +156,7 @@ workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
 
 workflow.execute_entity_task(fsm_flowline_model_run,gdirs,
                              climate_filename='climate_historical_fsm',
-                             ys=1981, ye=2019)
+                             ys=1980, ye=2019)
 
 print('all worked')
 
