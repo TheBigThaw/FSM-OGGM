@@ -65,7 +65,7 @@ integer :: &
   k,                 &! Elevation band counter
   Nbnd                ! Number of elevation bands
   
-call SETPARAMS
+call SET_PARAMETERS
 
 ! Elevation bands
 open(9,file='FSM_bands')
