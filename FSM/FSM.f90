@@ -11,7 +11,6 @@ implicit none
 
 ! Model layers
 integer, parameter :: &
-  Nbnd = 10,         &! Number of elevation bands
   Nsmx = 3,          &! Maximum number of snow layers
   Nice = 10           ! Number of ice layers
 real :: &
@@ -19,9 +18,6 @@ real :: &
   Dice(Nice)          ! Ice layer thicknesses (m)
 data Dmin / 0.1, 0.2, 0.4 /
 data Dice / 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0, 1.0 /
-real, parameter :: &
-  zmin = 2507,       &! Centre of lowest elevation band (m)
-  zmax = 3739         ! Centre of highest elevation band (m)
 
 ! Meteorological variables at reference elevation and in bands
 integer :: &
@@ -30,7 +26,6 @@ integer :: &
   day,               &! Day of month
   hour                ! Hour of day
 real :: &
-  dz(Nbnd),          &! Elevation bands relative to reference height (m)
   LW,LWz,            &! Incoming longwave radiation (W/m^2)
   Ps,Psz,            &! Surface pressure (Pa)
   Qa,Qaz,            &! Specific humidity (kg/kg)
@@ -38,51 +33,69 @@ real :: &
   Sf,Sfz,            &! Snowfall rate (kg/m^2/s)
   SW,SWz,            &! Shortwave radiation (W/m^2)
   Ta,Taz,            &! Air temperature (K)
-  Ua,Uaz,            &! Wind speed (m/s)
-  zref                ! Reference elevation  
+  Ua,Uaz              ! Wind speed (m/s)
+real, allocatable :: &  
+  dz(:)               ! Elevation bands relative to reference height (m)
 
 ! Model state variables  
-integer :: &
-  Nsnw(Nbnd)          ! Number of snow layers
-real :: &
-  albs(Nbnd),        &! Snow albedo
-  Tsrf(Nbnd),        &! Snow/ground surface temperature (K)
-  Dsnw(Nsmx,Nbnd),   &! Snow layer thicknesses (m)
-  Sice(Nsmx,Nbnd),   &! Ice content of snow layers (kg/m^2)
-  Sliq(Nsmx,Nbnd),   &! Liquid content of snow layers (kg/m^2)
-  Tice(Nice,Nbnd),   &! Ice layer temperatures (K)
-  Tsnw(Nsmx,Nbnd)     ! Snow layer temperatures (K)
+integer, allocatable :: &
+  Nsnw(:)             ! Number of snow layers
+real, allocatable :: &
+  albs(:),           &! Snow albedo
+  Tsrf(:),           &! Snow/ground surface temperature (K)
+  Dsnw(:,:),         &! Snow layer thicknesses (m)
+  Sice(:,:),         &! Ice content of snow layers (kg/m^2)
+  Sliq(:,:),         &! Liquid content of snow layers (kg/m^2)
+  Tice(:,:),         &! Ice layer temperatures (K)
+  Tsnw(:,:)           ! Snow layer temperatures (K)
+logical :: dump       ! True if dump file exists
 
 ! Diagnostics
-real :: &
-  Mice(Nbnd),        &! Ice mass change (kg/m^2)
-! DNG: Roff array replaced with 2 arrays tracking
-! runoff from ice and snow
-  RofI(Nbnd),        &! Runoff from ice (kg/m^2)
-  RofS(Nbnd),        &! Runoff from rain/snow (kg/m^2)
-  snd(Nbnd),         &! Snow depth (m)
-  SWE(Nbnd),         &! Snow water equivalent (kg/m^2) 
-  Mice_tot(Nbnd),    &! Cumulative ice mass change (kg/m^2)
-  Roff_tot(Nbnd)      ! Cumulative runoff (kg/m^2)
+real, allocatable :: &
+  Mice(:),           &! Ice mass change (kg/m^2)
+  RofI(:),           &! Ice Runoff (kg/m^2)
+  RofS(:),           &! Snow Runoff (kg/m^2)
+  snd(:),            &! Snow depth (m)
+  SWE(:),            &! Snow water equivalent (kg/m^2) 
+  SWE0(:),           &! Initial snow water equivalent (kg/m^2) 
+  Mice_tot(:)         ! Cumulative ice mass change (kg/m^2)
 
 ! Counters
-integer :: k          ! Elevation band counter
-
+integer :: &
+  k,                 &! Elevation band counter
+  Nbnd                ! Number of elevation bands
+  
 call SET_PARAMETERS
 
-! Default initialization of state variables
+! Elevation bands
+open(9,file='FSM_bands')
+read(9,*) Nbnd
+allocate(dz(Nbnd))
+read(9,*) dz
+close(9)
+
+! Allocate and initialize state variables
+allocate(albs(Nbnd))
+allocate(Nsnw(Nbnd))
+allocate(Tsrf(Nbnd))
+allocate(Dsnw(Nsmx,Nbnd))
+allocate(Sice(Nsmx,Nbnd))
+allocate(Sliq(Nsmx,Nbnd))
+allocate(Tice(Nice,Nbnd))
+allocate(Tsnw(Nsmx,Nbnd))
 albs(:) = 0.8
 Nsnw(:) = 0
-Tsrf(:) = 273
-Sice(:,:) = 0
+Tsrf(:) = 273.15
 Dsnw(:,:) = 0
+Sice(:,:) = 0
 Sliq(:,:) = 0
-Tice(:,:) = 273
-Tsnw(:,:) = 273
+Tice(:,:) = 273.15
+Tsnw(:,:) = 273.15
 
-! Initialize state variables from FSM_start if it exists
-open(9,file='FSM_start',iostat=k)
-if (k==1) then
+! Initialize state variables from FSM_dump if it exists
+inquire(file='FSM_dump',exist=dump)
+if (dump) then
+  open(9,file='FSM_dump') 
   read(9,*) albs
   read(9,*) Dsnw
   read(9,*) Nsnw
@@ -94,15 +107,16 @@ if (k==1) then
 end if
 close(9)
 
-! Initialize cumulated diagnostics
+! Allocate and initialize diagnostics
+allocate(Mice(Nbnd))
+allocate(Mice_tot(Nbnd))
+allocate(RofI(Nbnd))
+allocate(RofS(Nbnd))
+allocate(snd(Nbnd))
+allocate(SWE(Nbnd))
+allocate(SWE0(Nbnd))
 Mice_tot(:) = 0
-Roff_tot(:) = 0
-
-! Elevation bands
-zref = 2252
-do k = 1, Nbnd
-  dz(k) = zmin + (k - 0.5)*(zmax - zmin)/Nbnd - zref
-end do
+SWE0(:) = 0
 
 ! Run the model with meteorlogical data from FSM_met
 open(9,file='FSM_met')
@@ -111,27 +125,27 @@ do
   read(9,*,end=1) year,month,day,hour,SW,LW,Rf,Sf,Ta,Qa,Ua,Ps
   do k = 1, Nbnd
     call DOWNSCALE(LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                            &
-                   dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz               )
-! DNG: definition of FSM_TIMESTEP changed as shown below           
+                   dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz)
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
-                      Mice(k),RofI(k),RofS(k),snd(k),SWE(k)            )
+                      Mice(k),RofI(k),RofS(k),snd(k),SWE(k))
   end do
   Mice_tot = Mice_tot + Mice
-  Roff_tot = Roff_tot + RofI + RofS
-  if (modulo(hour,24)==0) then
-      write(10,100) year,month,day,hour,                               &
-                    Mice_tot(:),Roff_tot(:),snd(:),SWE(:)
-      Mice_tot(:) = 0
-      Roff_tot(:) = 0
-  end if
+  if ((month==12) .and. (day==31) .and. (hour==23)) then
+    write(10,100) year,SWE(:) - SWE0(:) - Mice_tot(:)
+    Mice_tot(:) = 0
+    do k = 1, Nbnd
+      SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
+    end do
+  endif 
 end do
 1 continue
 close(9)
+
 close(10)
-100 format(4(i4),*(f10.2))
+100 format(i4,*(f12.2))
 
 ! Write state variables at end of run to FSM_dump
 open(9,file='FSM_dump')
@@ -198,12 +212,12 @@ end do
 do n = 1, Ntim
   do k = 1, Nbnd
     call DOWNSCALE(LW(n),Ps(n),Qa(n),Rf(n),Sf(n),SW(n),Ta(n),Ua(n),    &
-                   dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz               ) 
+                   dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz) 
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
                       Tice(:,k),Tsnw(:,k),Tsrf(k),                     &
-                      Mice(k),RofI(k),RofS(k), snd(k),SWE(k)           )
+                      Mice(k),RofI(k),RofS(k), snd(k),SWE(k))
 ! DNG my understanding is that the Runoff found is the amount per time step
 !     so here accumulate in time and by band
     RoffSn(1+(n-1)/n_roff) = RoffSn(1+(n-1)/n_roff) + RofS(k) * areas(k)
@@ -285,7 +299,13 @@ real :: &
 real :: &
   elapse,            &! Vapour pressure lapse rate (1/m)
   Plapse,            &! Precipitation adjustment factor (1/m)
-  Tlapse              ! Temperature laspe rate (K/m)
+  Tlapse,            &! Temperature laspe rate (K/m)
+  Pf                  ! Precipitation multiplier
+
+integer:: &
+  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
+
+
   
 end module PARAMETERS
 
@@ -298,11 +318,11 @@ implicit none
 namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
                   tmlt,trho,Wirr,z0sn,                                 &
                   aice,z0ic,                                           &
-                  elapse,Plapse,Tlapse
+                  elapse,Plapse,Tlapse, Pf, sigmoidDscale
 
 ! Snow parameters
   asmx = 0.85         ! Maximum albedo for fresh snow
-  asmn = 0.5          ! Minimum albedo for melting snow
+  asmn = 0.6          ! Minimum albedo for melting snow
   bstb = 5            ! Stability slope parameter
   bthr = 2            ! Snow thermal conductivity exponent
   hfsn = 0.1          ! Snow cover fraction depth scale (m)
@@ -317,18 +337,20 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
   z0sn = 0.001        ! Snow surface roughness length (m)
 
 ! Ice parameters
-  aice = 0.6          ! Ice albedo
+  aice = 0.5          ! Ice albedo
   z0ic = 0.01         ! Ice surface roughness length (m)
   
 ! Metorology downscaling parameters
   elapse = 0.         ! Vapour pressure lapse rate (1/m)
-  Plapse = 0.35e-3    ! Precipitation adjustment factor (1/m)
-  Tlapse = 5.7e-3     ! Temperature laspe rate (K/m)
+  Plapse = 0.0        ! Precipitation adjustment factor (1/m)
+  Tlapse = 6.5e-3     ! Temperature laspe rate (K/m)
+  Pf = 1.2            ! Precipitation multiplier
+  sigmoidDscale = 0   ! sigmoid fn for solid fraction (1 or 0)
   
 open(8,file='nlst') 
 read(8,params)
 close(8)
-  
+
 end subroutine SET_PARAMETERS
 
 !-----------------------------------------------------------------------
@@ -343,7 +365,9 @@ use CONSTANTS, only: &
 use PARAMETERS, only: &
   elapse,            &! Vapour pressure laps rate (1/m)
   Plapse,            &! Precipitation adjustment factor (1/m)
-  Tlapse              ! Temperature lapse rate (K/m)
+  Tlapse,            &! Temperature lapse rate (K/m)
+  Pf,                &! precip fac
+  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
 
 implicit none
 
@@ -371,7 +395,7 @@ real, intent(out) :: &
   Uaz                 ! Wind speed (m/s)
   
 real :: &
-  fs,                &! Snow fraction
+  fs,fs0,fs1,        &! Snow fraction
   Pr,                &! Precipitation rate (kg/m2/s)
   Qs                  ! Saturation specific humidity
 
@@ -386,8 +410,11 @@ Taz = Ta - Tlapse*dz
 call QSAT(Psz,Taz,Qs)
 Qaz = min(Qa,Qs)
 Pr = Rf + Sf
-Pr = Pr*(1 + Plapse*dz)/(1 - Plapse*dz)
-fs = 1 / (1 + exp((Ta - Tm - 1.6)/1))
+Pr = Pr*Pf*(1 + Plapse*dz)/(1 - Plapse*dz)
+fs1 = 1 / (1 + exp((Ta - Tm - 1.6)/1))
+fs0 = 1 - 0.5*(Taz - 273.15)
+fs0 = min(1.,max(fs0,0.))
+fs = sigmoidDscale * fs1 + (1-sigmoidDscale) * fs0
 Rfz = (1 - fs)*Pr
 Sfz = fs*Pr
 
@@ -410,7 +437,7 @@ real :: &
   Dice(Nice),       &! Ice layer thicknesses (m)
   Dmin(Nsmx)         ! Minimum snow layer thicknesses (m)
 
-! Meteorological variables
+! Meteoroeogical variables
 real, intent(in) :: &
   LW,                &! Incoming longwave radiation (W/m2)
   Ps,                &! Surface pressure (Pa)
@@ -532,16 +559,16 @@ Mice = (Melt + Esrf)*dt
 ! DNG in Main branch, Roff is not set to Melt as it is here
 RofI = Melt*dt
 
-! DNG from conv with Richard, the loop below is not needed
-!do k = 1, Nice
-!  Tice(k) = Tice(k) + dTice(k)
-!  if (Tice(k) > Tm) then
+do k = 1, Nice
+ Tice(k) = Tice(k) + dTice(k)
+! DNG from conv with Richard, the lines below is not needed
+! if (Tice(k) > Tm) then
 !    Melt = rho_ice*hcap_ice*Dice(k)*(Tice(k) - Tm)/Lf
 !    Mice = Mice + Melt*dt
 !    RofI = RofI + Melt*dt
 !    Tice(k) = Tm
-!  end if
-!end do
+! end if
+end do
 
 end subroutine ICE
 
