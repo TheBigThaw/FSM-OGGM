@@ -1,5 +1,6 @@
-import argparse
 import os
+import sys
+import configparser
 import geopandas as gpd
 import pandas as pd
 import numpy as np
@@ -10,26 +11,31 @@ from oggm import workflow
 from oggm.sandbox import distribute_2d
 
 ## Define main function
-def main(args):
+def main(cfg_path):
     # In this script reset should be set to only False
     # This is all post processing!
     reset = False
 
+    cp = configparser.ConfigParser()
+    cp.read(cfg_path)
+
+    gen  = cp['General']
+    oggm = cp['OGGM']
+    fsm  = cp['FSM_OGGM']
+    inp  = cp['InputData']
+    outp = cp['Output']
+
     cfg.initialize(logging_level='DEBUG')
 
     # Configure parameters from arguments
-    cfg.PARAMS['use_multiprocessing'] = args.use_multiprocessing
-    cfg.PARAMS['mp_processes'] = args.mp_processes
-    cfg.PARAMS['border'] = 80
-
-    print('Reset is set to ', reset)
-    print('**Important set this to False to avoid '
-          'resetting the glacier directory everytime this is ran!**')
+    cfg.PARAMS['use_multiprocessing'] = oggm.getboolean('use_multiprocessing')
+    cfg.PARAMS['mp_processes']        = oggm.getint('mp_processes')
+    cfg.PARAMS['border']              = oggm.getint('border', fallback=80)
 
     # this sets a temporary working directory. if you want to use a permanent
     # directory then uncomment and adapt the following line.
-    cfg.PATHS['working_dir'] = utils.mkdir(args.working_dir)
-    # cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
+    working_dir = gen.get('working_dir')
+    cfg.PATHS['working_dir'] = utils.mkdir(working_dir)
     print('we are working here', cfg.PATHS['working_dir'])
 
     cfg.PARAMS['continue_on_error'] = True
@@ -48,14 +54,13 @@ def main(args):
 
     fr = utils.get_rgi_region_file(11, version='62', reset=False)
     gdf = gpd.read_file(fr)
-
-    catchment_path = args.catchment_path
+ 
+    catchment_path = inp.get('catchment_path')
     rof_shp = gpd.read_file(catchment_path)
-
     rof_sel = gdf.clip(rof_shp)
     rof_sel = rof_sel.sort_values('Area', ascending=False)
 
-    rgi_id = args.glacier_rgi_id
+    rgi_id = inp.get('glacier_rgi_id')
     if rgi_id in ('None', '', None):
         rgi_id = None
 
@@ -75,9 +80,9 @@ def main(args):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    simulation_name = args.simulation_name
+    simulation_name = outp.get('simulation_name')
 
-    path_for_distributed_data = os.path.join(args.working_dir,
+    path_for_distributed_data = os.path.join(working_dir,
                                              'distributed_data' + simulation_name)
 
     distribute_2d.merge_simulated_thickness(gdirs,
@@ -148,22 +153,7 @@ def main(args):
     print("Done with post processing of thickness and runoff")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
-    parser.add_argument('--reset', type=bool, default=True)
-    parser.add_argument('--working_dir', type=str, default='')
-    parser.add_argument('--use_multiprocessing', type=bool, default=False)
-    parser.add_argument('--mp_processes', type=int, default=2)
-    parser.add_argument('--border', type=int, default=80)
-    parser.add_argument('--asm_x', type=float, default=0.85)
-    parser.add_argument('--nbnds', type=int, default=15)
-    parser.add_argument('--spinup', type=bool, default=True)
-    parser.add_argument('--climate_file', type=str, default='/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/')
-    parser.add_argument('--glacier_rgi_id', type=str, default='')
-    parser.add_argument('--y0', type=int, default=1980)
-    parser.add_argument('--y1', type=int, default=2019)
-    parser.add_argument('--catchment_path', type=str, default='')
-    parser.add_argument('--simulation_name', type=str, default='')
-
-
-    args = parser.parse_args()
-    main(args)
+    if len(sys.argv) != 2:
+        print("Usage: output_distributed_thickness_and_runoff.py <config.ini>")
+        sys.exit(1)
+    main(sys.argv[1])    
