@@ -1,50 +1,86 @@
 import argparse
+import sys
 import geopandas as gpd
 import xarray as xr
+import configparser
 from oggm import cfg, utils
 from oggm import workflow, tasks
 from oggm.sandbox import distribute_2d
 from FSM_oggm_MB import FactorialSnowpackModel, process_wfde5_data, fsm_flowline_model_run
 
-def main(args):
-    reset = args.reset
+def main(cfg_path):
 
+    # ----------------------
+    # 1) Read configuration file
+    # ----------------------
+    cp = configparser.ConfigParser()
+    cp.read(cfg_path)
+
+    gen  = cp['General']
+    oggm = cp['OGGM']
+    fsm  = cp['FSM_OGGM']
+    inp  = cp['InputData']
+    outp = cp['Output']
+
+    # ----------------------
+    # 2) Parse general settings
+    # ----------------------
+    working_dir = gen.get('working_dir')          # string, may be blank
+    reset       = gen.getboolean('reset')         # bool
+
+    # ----------------------
+    # 3) Initialize OGGM core
+    # ----------------------
     cfg.initialize(logging_level='DEBUG')
+    cfg.PATHS['working_dir'] = utils.mkdir(working_dir, reset=reset)
+    print(f"Working directory: {cfg.PATHS['working_dir']}")
+    print(f"Reset = {reset}  (set False to preserve existing directories)")
 
-    #Configure parameters from arguments
-    cfg.PARAMS['use_multiprocessing'] = args.use_multiprocessing
-    cfg.PARAMS['mp_processes'] = args.mp_processes
-    cfg.PARAMS['border'] = 80
+    # ----------------------
+    # 4) OGGM parameters
+    # ----------------------
+    cfg.PARAMS['use_multiprocessing'] = oggm.getboolean('use_multiprocessing')
+    cfg.PARAMS['mp_processes']        = oggm.getint('mp_processes')
+    cfg.PARAMS['border']              = oggm.getint('border', fallback=80)
 
-    cfg.PARAMS['FSM_save_runoff'] = True
-    cfg.PARAMS['FSM_runoff_frequency'] = 'D'
+    # ----------------------
+    # 5) FSM parameters
+    # ----------------------
+    cfg.PARAMS['FSM_save_runoff']        = fsm.getboolean('FSM_save_runoff')
+    cfg.PARAMS['FSM_runoff_frequency']   = fsm.get('FSM_runoff_frequency')
+    cfg.PARAMS['FSM_spinup']             = fsm.getboolean('FSM_spinup')
+    cfg.PARAMS['FSM_interpolate_bnds']   = fsm.getboolean('FSM_interpolate_bnds')
+    # note: nbnds can only be set if interpolate_bnds is True
+    cfg.PARAMS['FSM_Nbnds']              = fsm.getint('FSM_Nbnds')
+    cfg.PARAMS['FSM_param_asmx']         = fsm.getfloat('FSM_param_asmx')
+    cfg.PARAMS['FSM_param_asmn']         = fsm.getfloat('FSM_param_asmn')
+    cfg.PARAMS['FSM_param_aice']         = fsm.getfloat('FSM_param_aice')
+    cfg.PARAMS['FSM_param_Plapse']       = fsm.getfloat('FSM_param_Plapse')
+    cfg.PARAMS['FSM_param_Pf']           = fsm.getfloat('FSM_param_Pf')
+    cfg.PARAMS['FSM_param_Tlapse']       = fsm.getfloat('FSM_param_Tlapse')
+    cfg.PARAMS['FSM_param_sigmoidDscale']= fsm.getint('FSM_param_sigmoidDscale')
 
-    # the following if True means FSM will be run with a fixed # of columns
-    # independent on the number of glacier sectoins/elev bands. These
-    # will be spaced evenly over the elev range (which will include the
-    # downstream region - so im not sure it is a good idea to use at all).
-    # The number of columns/bands can be set in
-    # the FactorialSnowpackModel constructor as a kwarg, or through the
-    # cfg.PARAMS['FSM_Nbnds'] parameter (kwarg overwrites global param)
-    # or has a default of 15
-    cfg.PARAMS['FSM_interpolate_bnds'] = False
-    cfg.PARAMS['FSM_Nbnds'] = args.nbnds
+    FactorialSnowpackModel.create_nml(reset=reset)
 
-    # if True, this will run FSM for one year when FactorialSnowpackModel is
-    # initiated, and the results will be the saved "initial state"
-    cfg.PARAMS['FSM_spinup'] = args.spinup
+    # ----------------------
+    # 6) Climate & I/O paths
+    # ----------------------
+    cfg.PATHS['climate_file']   = inp.get('climate_file')
+    cfg.PARAMS['baseline_climate'] = 'CUSTOM'
+    catchment_path = inp.get('catchment_path')
 
-    # Here is how an FSM parameter (asmx) is set. this will create a
-    # namelist entry with the value equal to the default
-    cfg.PARAMS['FSM_param_asmx'] = args.asm_x
+    # ----------------------
+    # 7) OGGM run setup
+    # ----------------------
+    y0 = inp.getint('y0')
+    y1 = inp.getint('y1')
+    rgi_id = inp.get('glacier_rgi_id')
+    simulation_name = inp.get('simulation_name')
 
     _doc = ('A netcdf file containing dates and ' +
             'ice-based and snow-based runoff volume ' +
             'for each date interval')
     cfg.BASENAMES['FSM_runoff'] = ('FSM_runoff.nc', _doc)
-
-    FactorialSnowpackModel.create_nml(reset=reset)
-
 
     print('Reset is set to ', reset)
     print('**Important set this to False to avoid '
@@ -52,13 +88,8 @@ def main(args):
 
     # this sets a temporary working directory. if you want to use a permanent
     # directory then uncomment and adapt the following line.
-    cfg.PATHS['working_dir'] = utils.mkdir(args.working_dir, reset=reset)
-    # cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
+    cfg.PATHS['working_dir'] = utils.mkdir(working_dir, reset=reset)
     print('we are working here', cfg.PATHS['working_dir'])
-
-    # bespoke path -- needs to be reset
-    cfg.PATHS['climate_file'] = args.climate_file
-    cfg.PARAMS['baseline_climate'] = 'CUSTOM'
 
     cfg.PARAMS['continue_on_error'] = True
     cfg.PARAMS['use_compression'] = True
@@ -75,13 +106,11 @@ def main(args):
     fr = utils.get_rgi_region_file(11, version='62', reset=reset)
     gdf = gpd.read_file(fr)
 
-    catchment_path = args.catchment_path
     rof_shp = gpd.read_file(catchment_path)
 
     rof_sel = gdf.clip(rof_shp)
     rof_sel = rof_sel.sort_values('Area', ascending=False)
 
-    rgi_id = args.glacier_rgi_id
     if rgi_id in ('None', '', None):
         rgi_id = None
 
@@ -123,8 +152,6 @@ def main(args):
         ds = ds.load()
         assert len(ds.count().variables.keys()) == 21
 
-    y0 = args.y0
-    y1 = args.y1
 
     workflow.execute_entity_task(process_wfde5_data, gdirs, y0=str(y0), y1=str(y1))
     print("DONE PROCESSING wfde5 data")
@@ -152,7 +179,6 @@ def main(args):
 
     print("DONE running FSM")
 
-    simulation_name = args.simulation_name
 
     workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
     workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
@@ -160,21 +186,7 @@ def main(args):
                                  gdirs, input_filesuffix=simulation_name)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run FSM OGGM model with customizable parameters')
-    parser.add_argument('--reset', type=bool, default=True)
-    parser.add_argument('--working_dir', type=str, default='')
-    parser.add_argument('--use_multiprocessing', type=bool, default=False)
-    parser.add_argument('--mp_processes', type=int, default=2)
-    parser.add_argument('--border', type=int, default=80)
-    parser.add_argument('--asm_x', type=float, default=0.85)
-    parser.add_argument('--nbnds', type=int, default=15)
-    parser.add_argument('--spinup', type=bool, default=True)
-    parser.add_argument('--climate_file', type=str, default='/exports/geos.ed.ac.uk/iceocean/WFDE5_rof/')
-    parser.add_argument('--glacier_rgi_id', type=str, default='')
-    parser.add_argument('--y0', type=int, default=1980)
-    parser.add_argument('--y1', type=int, default=2019)
-    parser.add_argument('--catchment_path', type=str, default='')
-    parser.add_argument('--simulation_name', type=str, default='')
-
-    args = parser.parse_args()
-    main(args)
+    if len(sys.argv) != 2:
+        print("Usage: test_fsm_rofental.py <config.ini>")
+        sys.exit(1)
+    main(sys.argv[1])
