@@ -1,4 +1,3 @@
-import argparse
 import sys
 import geopandas as gpd
 import xarray as xr
@@ -75,7 +74,7 @@ def main(cfg_path):
     y0 = inp.getint('y0')
     y1 = inp.getint('y1')
     rgi_id = inp.get('glacier_rgi_id')
-    simulation_name = inp.get('simulation_name')
+    simulation_name = outp.get('simulation_name')
 
     _doc = ('A netcdf file containing dates and ' +
             'ice-based and snow-based runoff volume ' +
