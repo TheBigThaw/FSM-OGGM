@@ -171,10 +171,12 @@ def main(cfg_path):
     # finally create the dynamic flowlines
     workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
 
+    # DNG because of an ideosyncracy with OGGM date specification, we pass
+    # ye=2020 in order to process 2019
     workflow.execute_entity_task(fsm_flowline_model_run, gdirs,
                                  climate_filename='climate_historical_fsm',
                                  output_filesuffix='_climate_historical_fsm',
-                                 ys=y0, ye=y1)
+                                 ys=y0, ye=(y1+1))
 
     print("DONE running FSM")
 

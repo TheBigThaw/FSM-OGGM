@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-import config_parser
+import configparser
 import numpy as np
 import geopandas as gpd
 from pyproj import CRS

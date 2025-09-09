@@ -73,8 +73,9 @@ def extract_terminus_position_per_year(topo_year,
         # For the entire flowline
         x_all, y_all = salem.gis.transform_proj(wgs84, raster_proj, x, y)
         elev_fls = ds_fls.interp(x=np.array(x_all), y=np.array(y_all), method='nearest')
+        yr = topo_year.time.values.tolist()
         if elev_fls is None or elev_fls.count() == 0:
-            print(f"Skipping glacier {rgi_id.values[0]}: no valid elevation data in this year.")
+            print(f"Skipping glacier {rgi_id.values[0]}: no valid elevation data in {yr}.")
             continue
         terminus = elev_fls.where(elev_fls == elev_fls.min(skipna=True), drop=True)
 
@@ -205,6 +206,7 @@ def main(cfg_path):
 
     matched_files = sorted(glob.glob(pattern))
 
+
     topo_file_pattern = os.path.join(cfg.PATHS['working_dir'], 'distributed_data' + simulation_name, "*topo*")
     matched_dem = sorted(glob.glob(topo_file_pattern))
 
@@ -238,6 +240,13 @@ def main(cfg_path):
     os.makedirs(intermediate_files_dir, exist_ok=True)
 
     file_names = []
+
+    # DNG: the issue is that there is a file for ye+1, giving the dist thickness at the END 
+    #      of ye. There are no ye+1 entries in the runoff file
+
+    if years[-1] > inp.getint('y1'):
+        years=years[:np.where(years==inp.getint('y1')+1)[0][0]]
+
     for y in years:
         file_names.append(os.path.join(intermediate_files_dir,
                                        'terminus_tracking_' + str(y) + '_' + simulation_name + '.csv'))
@@ -262,16 +271,20 @@ def main(cfg_path):
     df_new = xr.open_dataset(file_to_change)
 
     i = np.arange(len(years))
-
     for year, file, t_index in zip(years, file_names, i):
         df = pd.read_csv(file)
 
+        # the search below is based on the structure of the csv files created by
+        #   extract_terminus_position_per_year.
+        # result is that the (daily) runoff only gets terminus positions on the 
+        #   first of every year, meaning a large number of null values
         for rgiid in df_new.RGIID.values:
-            key = (str(rgiid), pd.Timestamp(f"{year}-01-01"))
-            if key in df.index:
-                dpg = df.loc['key']
-                df_new['lat'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lat'].values[0]
-                df_new['lon'].loc[dict(time=t_index, RGIID=rgiid)] = dpg['lon'].values[0]
+            key = str(rgiid)
+            if key in df.RGIID.tolist():
+                dpg = df.loc[df.RGIID==key]
+                ydt = pd.Timestamp(f"{year}-01-01")
+                df_new['lat'].loc[dict(time=ydt, RGIID=rgiid)] = dpg['lat'].values[0]
+                df_new['lon'].loc[dict(time=ydt, RGIID=rgiid)] = dpg['lon'].values[0]
 
     os.remove(file_to_change)
     df_new.to_netcdf(file_to_change)
