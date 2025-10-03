@@ -589,6 +589,8 @@ class FactorialSnowpackModel(MassBalanceModel):
         for i in range(len(names)):
             nml['params'][names[i]] = vals[i]
 
+        nml['params']['rho_ice'] = cfg.PARAMS['ice_density']
+
         f90nml.write(nml,'nlst',force=True)
 
     def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
