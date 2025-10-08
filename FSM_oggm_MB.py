@@ -614,8 +614,8 @@ class FactorialSnowpackModel(MassBalanceModel):
             # a fixed number of segments past the last ice-filled secment
             numXtraSegs = 8
             bed = fls[0].bed_h
-            Nseg = len(np.where((heights-bed) > 0)[0])
-            Nseg = max(Nseg + numXtraSegs, len(bed)) 
+            Nseg = min(np.where((heights-bed) <= 0)[0])
+            Nseg = min(Nseg + numXtraSegs, len(bed)) 
         else:
             # if there is no bed_h attribute, FSM still expects topography
             # to limit melt. we pass bed=heights-100
