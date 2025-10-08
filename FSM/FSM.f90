@@ -162,6 +162,49 @@ close(9)
 end program FSM
 
 !-----------------------------------------------------------------------
+! FSM parameters -- now declared before fsmpy
+!-----------------------------------------------------------------------
+module PARAMETERS
+
+! Snow parameters
+real :: &
+  asmx,              &! Maximum albedo for fresh snow
+  asmn,              &! Minimum albedo for melting snow
+  bstb,              &! Stability slope parameter
+  bthr,              &! Snow thermal conductivity exponent
+  hfsn,              &! Snow cover fraction depth scale (m)
+  rhof,              &! Fresh snow density (kg/m^3)
+  rcld,              &! Maximum density for cold snow (kg/m^3)
+  rmlt,              &! Maximum density for melting snow (kg/m^3)
+  Salb,              &! Snowfall to refresh albedo (kg/m^2)
+  tcld,              &! Cold snow albedo decay timescale (h)
+  tmlt,              &! Melting snow albedo decay timescale (h)
+  trho,              &! Snow compaction time scale (h)
+  Wirr,              &! Irreducible liquid water content of snow
+  z0sn                ! Snow surface roughness length (m)
+
+! Ice parameters
+real :: &
+  aice,              &! Ice albedo
+  z0ic,              & ! Ice surface roughness length (m)
+  rho_ice              ! ice density
+  
+! Metorology downscaling parameters
+real :: &
+  elapse,            &! Vapour pressure lapse rate (1/m)
+  Plapse,            &! Precipitation adjustment factor (1/m)
+  Tlapse,            &! Temperature laspe rate (K/m)
+  Pf                  ! Precipitation multiplier
+
+integer:: &
+  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
+
+
+  
+end module PARAMETERS
+
+
+!-----------------------------------------------------------------------
 ! Landing routine for calling FSM from Python
 !-----------------------------------------------------------------------
 
@@ -174,6 +217,10 @@ subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
                  areas, heights,topo,                                  &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
                  RoffGl,RoffSn)
+
+use PARAMETERS, only: &
+  rho_ice              ! ice density (kg/m3)
+
 implicit none
 integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
                                                      ! Nroff: number of runoff records
@@ -193,7 +240,7 @@ real, dimension(Nbnd), intent(out) :: massb
 real, dimension(Nroff), intent(out) :: RoffGl
 real, dimension(Nroff), intent(out) :: RoffSn
 integer :: k,n,n_roff
-real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0
+real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0,Hice
 real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
 
 call SET_PARAMETERS
@@ -208,6 +255,12 @@ RofS(:) = 0
 n_roff = Ntim / Nroff
 do k = 1, Nbnd
   SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
+  ! DNG we calculate and keep track of ice thickness
+  !  solely for the purpose of truncating runoff. We 
+  !  do NOT truncate SMB -- this will be important in
+  !  melting ice that flows from the terminus to prevent
+  !  spurious advance
+  Hice(k) = MAX(heights(k)-topo(k),0.0)
 end do
 do n = 1, Ntim
   do k = 1, Nbnd
@@ -221,9 +274,15 @@ do n = 1, Ntim
 ! DNG my understanding is that the Runoff found is the amount per time step
 !     so here accumulate in time and by band
     RoffSn(1+(n-1)/n_roff) = RoffSn(1+(n-1)/n_roff) + RofS(k) * areas(k)
-    RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
+    ! DNG stop accumulating runoff where thickness is zero
+    if (Hice(k) .gt. 0) then
+      RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
+    endif
   end do
   massb = massb - Mice
+  do k = 1, Nbnd
+    Hice(k) = MAX(Hice(k) - Mice(k)/rho_ice,0.0)
+  end do
 end do
 massb = massb + SWE - SWE0
 
@@ -251,7 +310,6 @@ real, parameter :: &
   Ls = Lc + Lf,      &! Latent heat of sublimation (J/kg)
   Rgas = 287,        &! Gas constant for dry air (J/K/kg)
   Rwat = 462,        &! Gas constant for water vapour (J/K/kg)
-  rho_ice = 917.,    &! Density of ice (kg/m^3)
   rho_wat = 1000.,   &! Density of water (kg/m^3)
   sb = 5.67e-8,      &! Stefan-Boltzmann constant (W/m^2/K^4)
   Tm = 273.15,       &! Melting point (K)
@@ -269,46 +327,8 @@ real, parameter :: &
 end module DRIVING
 
 !-----------------------------------------------------------------------
-! FSM parameters
+! set FSM parameters
 !-----------------------------------------------------------------------
-module PARAMETERS
-
-! Snow parameters
-real :: &
-  asmx,              &! Maximum albedo for fresh snow
-  asmn,              &! Minimum albedo for melting snow
-  bstb,              &! Stability slope parameter
-  bthr,              &! Snow thermal conductivity exponent
-  hfsn,              &! Snow cover fraction depth scale (m)
-  rhof,              &! Fresh snow density (kg/m^3)
-  rcld,              &! Maximum density for cold snow (kg/m^3)
-  rmlt,              &! Maximum density for melting snow (kg/m^3)
-  Salb,              &! Snowfall to refresh albedo (kg/m^2)
-  tcld,              &! Cold snow albedo decay timescale (h)
-  tmlt,              &! Melting snow albedo decay timescale (h)
-  trho,              &! Snow compaction time scale (h)
-  Wirr,              &! Irreducible liquid water content of snow
-  z0sn                ! Snow surface roughness length (m)
-
-! Ice parameters
-real :: &
-  aice,              &! Ice albedo
-  z0ic                ! Ice surface roughness length (m)
-  
-! Metorology downscaling parameters
-real :: &
-  elapse,            &! Vapour pressure lapse rate (1/m)
-  Plapse,            &! Precipitation adjustment factor (1/m)
-  Tlapse,            &! Temperature laspe rate (K/m)
-  Pf                  ! Precipitation multiplier
-
-integer:: &
-  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
-
-
-  
-end module PARAMETERS
-
 subroutine SET_PARAMETERS
 
 use PARAMETERS
@@ -317,7 +337,7 @@ implicit none
 
 namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
                   tmlt,trho,Wirr,z0sn,                                 &
-                  aice,z0ic,                                           &
+                  aice,z0ic, rho_ice,                                  &
                   elapse,Plapse,Tlapse, Pf, sigmoidDscale
 
 ! Snow parameters
@@ -339,6 +359,7 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
 ! Ice parameters
   aice = 0.5          ! Ice albedo
   z0ic = 0.01         ! Ice surface roughness length (m)
+  rho_ice = 917.0     ! Ice density (kg/m^3)
   
 ! Metorology downscaling parameters
   elapse = 0.         ! Vapour pressure lapse rate (1/m)
@@ -499,8 +520,10 @@ use CONSTANTS, only : &
   hcap_ice,          &! Specific heat capacity of ice (J/K/kg)
   hcon_ice,          &! Thermal conductivity of ice (W/m/K)
   Lf,                &! Latent heat of fusion (J/kg)
-  rho_ice,           &! Density of ice (kg/m^3)
   Tm                  ! Melting point (K)
+
+use PARAMETERS, only : & 
+  rho_ice            ! Density of ice (kg/m^3)
 
 use DRIVING, only : &
   dt                  ! Timestep (s)
@@ -619,7 +642,6 @@ use CONSTANTS, only : &
   hcap_wat,          &! Specific heat capacity of water (J/K/kg)
   hcon_ice,          &! Thermal conductivity of ice (W/m/K)
   Lf,                &! Latent heat of fusion (J/kg)
-  rho_ice,           &! Density of ice (kg/m^3)
   rho_wat,           &! Density of water (kg/m^3)
   Tm                  ! Melting point (K)
 
@@ -632,6 +654,7 @@ use PARAMETERS, only : &
   rhof,              &! Fresh snow density (kg/m^3)
   rmlt,              &! Maximum density for melting snow (kg/m^3)
   trho,              &! Snonw compaction time scale (h)
+  rho_ice,           &! Density of ice (kg/m^3)
   Wirr                ! Irreducible liquid water content of snow
 
 implicit none
@@ -932,7 +955,6 @@ use CONSTANTS, only: &
   Ls,                &! Latent heat of sublimation (J/kg)
   Rgas,              &! Gas constant for dry air (J/K/kg)
   Rwat,              &! Gas constant for water vapour (J/K/kg)
-  rho_ice,           &! Density of ice (kg/m^3)
   sb,                &! Stefan-Boltzmann constant (W/m^2/K^4)
   Tm,                &! Melting point (K)
   vkman               ! Von Karman constant
@@ -954,6 +976,7 @@ use PARAMETERS, only: &
   tcld,              &! Cold snow albedo decay timescale (h)
   tmlt,              &! Melting snow albedo decay timescale (h)
   z0ic,              &! Ice surface roughness length (m)  
+  rho_ice,           &! Density of ice (kg/m^3)
   z0sn                ! Snow surface roughness length (m)
 
 implicit none

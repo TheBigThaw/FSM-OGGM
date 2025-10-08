@@ -589,6 +589,8 @@ class FactorialSnowpackModel(MassBalanceModel):
         for i in range(len(names)):
             nml['params'][names[i]] = vals[i]
 
+        nml['params']['rho_ice'] = cfg.PARAMS['ice_density']
+
         f90nml.write(nml,'nlst',force=True)
 
     def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
@@ -609,9 +611,11 @@ class FactorialSnowpackModel(MassBalanceModel):
         if hasattr(fls[0],'bed_h'):
             # if this is a flowline model, it could have non-ice covered area
             # limit the FSM columns only to where there is ice. Here, we model
-            # to the lowest/last ice filled segment, mb past this point is zero
-            Nseg = len(np.where((heights-fls[0].bed_h) > 1e-4)[0])
+            # a fixed number of segments past the last ice-filled secment
+            numXtraSegs = 8
             bed = fls[0].bed_h
+            Nseg = min(np.where((heights-bed) <= 0)[0])
+            Nseg = min(Nseg + numXtraSegs, len(bed)) 
         else:
             # if there is no bed_h attribute, FSM still expects topography
             # to limit melt. we pass bed=heights-100
