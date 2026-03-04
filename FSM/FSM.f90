@@ -267,7 +267,7 @@ do n = 1, Ntim
   recalc_swe = 0
   if (n.eq.1) recalc_swe = 1
   if (n.gt.1) then
-          if (months(n).gt.months(n-1)) recalc_swe = 1
+          if (months(n).ne.months(n-1)) recalc_swe = 1
   endif
   do k = 1, Nbnd
     if (recalc_swe == 1) then
@@ -291,7 +291,7 @@ do n = 1, Ntim
   massb(months(n),:) = massb(months(n),:) - Mice
   if (n.eq.Ntim) then
       massb(months(n),:) = massb(months(n),:) + SWE - SWE0
-  else if (months(n+1).gt.months(n)) then
+  else if (months(n+1).ne.months(n)) then
       massb(months(n),:) = massb(months(n),:) + SWE - SWE0
   endif
   do k = 1, Nbnd

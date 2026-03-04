@@ -689,8 +689,6 @@ class FactorialSnowpackModel(MassBalanceModel):
             roffgl = np.zeros(Nroff) # kg
             roffsn = np.zeros(Nroff)
 
-        if not monthly:
-            mbloc = np.sum(mbloc,0)
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         if year is None:
@@ -713,22 +711,24 @@ class FactorialSnowpackModel(MassBalanceModel):
                 self.runoff_ice = np.concatenate((self.runoff_ice,roffgl))
                 self.runoff_snow = np.concatenate((self.runoff_snow, roffsn))
 
+        mb = np.zeros((12,Nbnd))
+
         if self.interp_bnds:
             if min(heights) < self.zmin or max(heights) > self.zmax:
                 raise RuntimeError(f'The heights provided are outside of the '
                                    f'elevation bands for FSM')
-
             else:
-                
-                   
-                func = interp1d(self.zbnd, mbloc)
-                mb = func (heights)
+                for i in range(12):
+                    func = interp1d(self.zbnd, mbloc[i,:])
+                    mb[i,:] = func (heights)
         else:
-            mb[:Nbnd] = mbloc
+            mb[:,:Nbnd] = mbloc
+
+        if not monthly:
+            mb = np.sum(mb,0)
+
         embed()
-
         return mb
-
 
     def is_year_valid(self, year):
         return self.ys <= year <= self.ye
