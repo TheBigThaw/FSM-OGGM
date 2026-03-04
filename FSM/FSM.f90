@@ -213,7 +213,7 @@ end module PARAMETERS
 !      modified similarly
 
 subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
-                 Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
+                 Dice,Dmin,dz,months,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,          &
                  areas, heights,topo,                                  &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
                  RoffGl,RoffSn)
@@ -228,6 +228,7 @@ integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
+integer, dimension(Ntim), intent(in) :: months
 real, dimension(Ntim), intent(in) :: LW,Ps,Qa,Rf,Sf,SW,Ta,Ua
 real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area (m^2) of segments
 real, dimension(Nseg), intent(in) :: topo            ! and surface height and bed elev (m) of each segment
@@ -236,17 +237,18 @@ real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
 real, dimension(Nsmx,Nbnd), intent(inout) :: Dsnw,Sice,Sliq,Tsnw
 real, dimension(Nice,Nbnd), intent(inout) :: Tice
-real, dimension(Nbnd), intent(out) :: massb
+real, dimension(12,Nbnd), intent(out) :: massb
 real, dimension(Nroff), intent(out) :: RoffGl
 real, dimension(Nroff), intent(out) :: RoffSn
 integer :: k,n,n_roff
 real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0,Hice
 real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
+integer :: recalc_swe
 
 call SET_PARAMETERS
 
 ! DNG wasnt sure if this needed
-massb(:) = 0
+massb(:,:) = 0
 
 ! DNG zeroing new arrays
 RoffGl(:) = 0
@@ -254,7 +256,6 @@ RofI(:) = 0
 RofS(:) = 0
 n_roff = Ntim / Nroff
 do k = 1, Nbnd
-  SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
   ! DNG we calculate and keep track of ice thickness
   !  solely for the purpose of truncating runoff. We 
   !  do NOT truncate SMB -- this will be important in
@@ -263,7 +264,15 @@ do k = 1, Nbnd
   Hice(k) = MAX(heights(k)-topo(k),0.0)
 end do
 do n = 1, Ntim
+  recalc_swe = 0
+  if (n.eq.1) recalc_swe = 1
+  if (n.gt.1) then
+          if (months(n).gt.months(n-1)) recalc_swe = 1
+  endif
   do k = 1, Nbnd
+    if (recalc_swe == 1) then
+      SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
+    endif
     call DOWNSCALE(LW(n),Ps(n),Qa(n),Rf(n),Sf(n),SW(n),Ta(n),Ua(n),    &
                    dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz) 
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
@@ -279,12 +288,16 @@ do n = 1, Ntim
       RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
     endif
   end do
-  massb = massb - Mice
+  massb(months(n),:) = massb(months(n),:) - Mice
+  if (n.eq.Ntim) then
+      massb(months(n),:) = massb(months(n),:) + SWE - SWE0
+  else if (months(n+1).gt.months(n)) then
+      massb(months(n),:) = massb(months(n),:) + SWE - SWE0
+  endif
   do k = 1, Nbnd
     Hice(k) = MAX(Hice(k) - Mice(k)/rho_ice,0.0)
   end do
 end do
-massb = massb + SWE - SWE0
 
 ! -- below is to test that arrays are being passed and is commented
 ! -- floats are only correct to about 1 in 10^-8
