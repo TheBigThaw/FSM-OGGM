@@ -23,7 +23,7 @@ from progressbar import ProgressBar, Percentage, Bar
 import FSM
 import f90nml
 import pickle, gzip
-from IPython import embed
+from collections.abc import Iterable
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -373,12 +373,10 @@ class FactorialSnowpackModel(MassBalanceModel):
                  gdir,
                  filename='climate_historical_fsm',
                  input_filesuffix='',
-                 mb=0.,
                  zmin=None,
                  zmax=None,
                  Nbnd=15,
-                 bias=0.,
-                 runoff_filesuffix=''):
+                 bias=0.):
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in ma
@@ -455,7 +453,6 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.years = np.array([date.year for date in dates])
             self.months = np.array([date.month for date in dates])
             self.days = np.array([date.day for date in dates])
-        self._mb = mb
         self.ys = min(self.years)
         self.ye = max(self.years)
 
@@ -633,7 +630,10 @@ class FactorialSnowpackModel(MassBalanceModel):
             bed = heights-100
 
         if year is not None:
-            inds = np.where(self.years==year)
+            if isinstance(year,Iterable):
+                inds = np.isin(self.years,year)
+            else:
+                inds = np.where(self.years==year)
         else:
             inds = np.where(self.years > -99999)
 
@@ -667,6 +667,9 @@ class FactorialSnowpackModel(MassBalanceModel):
                                        f'or no runoff for FSM now')
         else:
             Nroff = 1
+
+        if reset_state:
+            self.reset_state()
 
         if Nbnd>0:
             mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.Dice, self.Dmin, dz, 
@@ -711,13 +714,14 @@ class FactorialSnowpackModel(MassBalanceModel):
                 self.runoff_ice = np.concatenate((self.runoff_ice,roffgl))
                 self.runoff_snow = np.concatenate((self.runoff_snow, roffsn))
 
-        mb = np.zeros((12,Nbnd))
+        mb = np.zeros((12,len(heights)))
 
         if self.interp_bnds:
             if min(heights) < self.zmin or max(heights) > self.zmax:
                 raise RuntimeError(f'The heights provided are outside of the '
                                    f'elevation bands for FSM')
             else:
+                mb = np.zeros((12,Nbnd))
                 for i in range(12):
                     func = interp1d(self.zbnd, mbloc[i,:])
                     mb[i,:] = func (heights)
@@ -727,7 +731,6 @@ class FactorialSnowpackModel(MassBalanceModel):
         if not monthly:
             mb = np.sum(mb,0)
 
-        embed()
         return mb
 
     def is_year_valid(self, year):

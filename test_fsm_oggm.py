@@ -44,7 +44,7 @@ cfg.PARAMS['FSM_Nbnds'] = 15
 
 # if True, this will run FSM for one year when FactorialSnowpackModel is 
 # initiated, and the results will be the saved "initial state"
-cfg.PARAMS['FSM_spinup'] = False
+cfg.PARAMS['FSM_spinup'] = True
 
 # Here is how an FSM parameter (asmx) is set. this will create a 
 # namelist entry with the value equal to the default
@@ -62,7 +62,7 @@ print('**Important set this to False to avoid '
 # this sets a temporary working directory. if you want to use a permanent
 # directory then uncomment and adapt the following line.
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-#cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
+cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
 print('we are working here', cfg.PATHS['working_dir'])
 
 # bespoke path -- needs to be reset
@@ -112,8 +112,6 @@ if reset:
 else:
     gdirs = workflow.init_glacier_directories(selection)
 
-
-
 elevation_band_task_list = [
     tasks.simple_glacier_masks,
     tasks.elevation_band_flowline,
@@ -147,6 +145,7 @@ workflow.calibrate_inversion_from_consensus(
 
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
+embed()
 
 workflow.execute_entity_task(fsm_flowline_model_run,gdirs,
                              climate_filename='climate_historical_fsm',
