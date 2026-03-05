@@ -145,7 +145,6 @@ workflow.calibrate_inversion_from_consensus(
 
 # finally create the dynamic flowlines
 workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
-embed()
 
 workflow.execute_entity_task(fsm_flowline_model_run,gdirs,
                              climate_filename='climate_historical_fsm',
