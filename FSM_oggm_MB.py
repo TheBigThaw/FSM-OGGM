@@ -700,7 +700,8 @@ class FactorialSnowpackModel(MassBalanceModel):
             baseline_y = 1
 
         rho = self.rho = cfg.PARAMS['ice_density']
-        mbloc = (mbloc / baseline_y) / SEC_IN_YEAR / rho # meters per second
+        # use SEC_IN_YEAR/12 as standard seconds per month
+        mbloc = (mbloc / baseline_y) / (SEC_IN_YEAR/12.) / rho # meters per second
 
         if self.save_runoff:
             datetimearr = np.array([np.datetime64(f"{y}-{m:02d}-{d:02d}") for y, m, d in zip(self.years[inds], self.months[inds], self.days[inds])])
@@ -729,7 +730,7 @@ class FactorialSnowpackModel(MassBalanceModel):
             mb[:,:Nbnd] = mbloc
 
         if not monthly:
-            mb = np.sum(mb,0)
+            mb = np.mean(mb,axis=0)
 
         return mb
 
