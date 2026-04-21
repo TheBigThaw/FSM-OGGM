@@ -674,7 +674,7 @@ class FactorialSnowpackModel(MassBalanceModel):
         if Nbnd>0:
             mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.Dice, self.Dmin, dz, 
                        months, LW, Ps, Qa, Rf, Sf, SW, Ta, Ua,
-                       areas[:Nseg], heights[:Nseg], bed[:Nseg],
+                       areas[:Nseg], heights[:Nseg]-bed[:Nseg],
                        self.albs[:Nbnd],
                        self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd],
                        self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], 
