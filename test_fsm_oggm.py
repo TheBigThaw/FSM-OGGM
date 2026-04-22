@@ -62,7 +62,7 @@ print('**Important set this to False to avoid '
 # this sets a temporary working directory. if you want to use a permanent
 # directory then uncomment and adapt the following line.
 cfg.PATHS['working_dir'] = utils.gettempdir(dirname='OGGM-FSM-test', reset=reset)
-cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
+#cfg.PATHS['working_dir'] = '/exports/geos.ed.ac.uk/iceocean/dgoldber/FSM-OGGM'
 print('we are working here', cfg.PATHS['working_dir'])
 
 # bespoke path -- needs to be reset
