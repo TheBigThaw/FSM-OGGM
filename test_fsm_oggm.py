@@ -138,9 +138,8 @@ workflow.calibrate_inversion_from_consensus(
     gdirs,
     apply_fs_on_mismatch=True,
     error_on_mismatch=True,  # if you're running many glaciers some might not work
-    filter_inversion_output=True,  # this partly filters the over deepening due to
+    filter_inversion_output=True  # this partly filters the over deepening due to
 #    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
-    volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
 )
 
 # finally create the dynamic flowlines

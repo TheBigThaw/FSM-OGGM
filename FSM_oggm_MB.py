@@ -373,10 +373,13 @@ class FactorialSnowpackModel(MassBalanceModel):
                  gdir,
                  filename='climate_historical_fsm',
                  input_filesuffix='',
+                 settings_filesuffix='',
                  zmin=None,
                  zmax=None,
                  Nbnd=15,
                  bias=0.):
+        self.settings_filesuffix = settings_filesuffix
+        gdir.settings_filesuffix = settings_filesuffix
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in ma
@@ -591,7 +594,7 @@ class FactorialSnowpackModel(MassBalanceModel):
 
         f90nml.write(nml,'nlst',force=True)
 
-    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
+    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False, **kwargs):
 
         # return annual mass balance either at prescribed elev bands or within segments
         # of a flowline model. If the latter, returns zero past the terminus
