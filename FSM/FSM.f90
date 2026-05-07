@@ -35,7 +35,8 @@ real :: &
   Ta,Taz,            &! Air temperature (K)
   Ua,Uaz              ! Wind speed (m/s)
 real, allocatable :: &  
-  dz(:)               ! Elevation bands relative to reference height (m)
+  dz(:),             &! Elevation bands relative to reference height (m)
+  Sscl(:)             ! scaling of snow accum with elev
 
 ! Model state variables  
 integer, allocatable :: &
@@ -71,8 +72,11 @@ call SET_PARAMETERS
 open(9,file='FSM_bands')
 read(9,*) Nbnd
 allocate(dz(Nbnd))
+allocate(Sscl(Nbnd))
 read(9,*) dz
 close(9)
+
+Sscl(:) = 1.0
 
 ! Allocate and initialize state variables
 allocate(albs(Nbnd))
@@ -125,7 +129,7 @@ do
   read(9,*,end=1) year,month,day,hour,SW,LW,Rf,Sf,Ta,Qa,Ua,Ps
   do k = 1, Nbnd
     call DOWNSCALE(LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                            &
-                   dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz)
+                   dz(k),Sscl(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz)
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
@@ -194,10 +198,12 @@ real :: &
   elapse,            &! Vapour pressure lapse rate (1/m)
   Plapse,            &! Precipitation adjustment factor (1/m)
   Tlapse,            &! Temperature laspe rate (K/m)
-  Pf                  ! Precipitation multiplier
+  Pf,                &! Precipitation multiplier
+  slctle              ! Snow limit elevation centile threshold (0 to 1)
 
 integer:: &
-  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
+  sigmoidDscale,     &! sigmoid fn for solid fraction (1 or 0)
+  precLimit           ! limit highest snow precip (1 or 0) [following Rounce and Hock (2015)]
 
 
   
@@ -213,13 +219,15 @@ end module PARAMETERS
 !      modified similarly
 
 subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
-                 Dice,Dmin,dz,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                 &
-                 areas, heights,topo,                                  &
+                 Dice,Dmin,dz,months,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,          &
+                 areas, HiceInit,                                      &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
                  RoffGl,RoffSn)
 
 use PARAMETERS, only: &
-  rho_ice              ! ice density (kg/m3)
+  rho_ice,            &! ice density (kg/m3)
+  slctle,             &! Snow limit elevation centile threshold (0 to 1)
+  precLimit            ! limit highest snow precip (1 or 0) [following Rounce and Hock (2015)]
 
 implicit none
 integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
@@ -228,44 +236,85 @@ integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
+integer, dimension(Ntim), intent(in) :: months
 real, dimension(Ntim), intent(in) :: LW,Ps,Qa,Rf,Sf,SW,Ta,Ua
-real, dimension(Nseg), intent(in) :: areas, heights  ! represent ice-covered area (m^2) of segments
-real, dimension(Nseg), intent(in) :: topo            ! and surface height and bed elev (m) of each segment
+real, dimension(Nseg), intent(in) :: areas, HiceInit ! represent ice-covered area (m^2) of segments
+                                                     ! and thickness (m) of each segment
                                                      ! (even non-ice covered)
 real, dimension(Nbnd), intent(inout) :: albs,Tsrf
 integer, dimension(Nbnd), intent(inout) :: Nsnw
 real, dimension(Nsmx,Nbnd), intent(inout) :: Dsnw,Sice,Sliq,Tsnw
 real, dimension(Nice,Nbnd), intent(inout) :: Tice
-real, dimension(Nbnd), intent(out) :: massb
+real, dimension(12,Nbnd), intent(out) :: massb
 real, dimension(Nroff), intent(out) :: RoffGl
 real, dimension(Nroff), intent(out) :: RoffSn
 integer :: k,n,n_roff
-real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0,Hice
-real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz
+real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0,Hice,Sscl
+real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,min_elev,max_elev,dzLim
+integer :: recalc_swe
 
 call SET_PARAMETERS
 
 ! DNG wasnt sure if this needed
-massb(:) = 0
+massb(:,:) = 0
 
 ! DNG zeroing new arrays
 RoffGl(:) = 0
 RofI(:) = 0
 RofS(:) = 0
 n_roff = Ntim / Nroff
+min_elev = 1.1e10
+max_elev = 1.1e10
 do k = 1, Nbnd
-  SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
   ! DNG we calculate and keep track of ice thickness
   !  solely for the purpose of truncating runoff. We 
   !  do NOT truncate SMB -- this will be important in
   !  melting ice that flows from the terminus to prevent
   !  spurious advance
-  Hice(k) = MAX(heights(k)-topo(k),0.0)
+  Hice(k) = MAX(HiceInit(k),0.0)
+  
+  ! get min and max relative elev for snow limiting
+  ! oggm passes arrays that start at top.
+  if (HiceInit(k).gt.0.) then
+          if (max_elev.gt.1.e10) then
+                  max_elev = dz(k)
+          endif
+          if (min_elev.gt.dz(k)) then
+                  min_elev = dz(k)
+          endif
+  endif
+
 end do
+
+dzLim = min_elev + (max_elev-min_elev)*slctle
+
+do k = 1, Nbnd
+
+       !exp(-(elev_i - elev_X%)/(max_elev- - elev_X%))
+       ! but not allowed to go below exp(-.2)
+       if (dz(k).gt.(dzLim+(max_elev-dzLim)*.2)) then
+               Sscl(k) = precLimit * exp(-.2) + (1.0-preclimit)
+       else if (dz(k).gt.dzLim) then
+               Sscl(k) = precLimit * exp(-(dz(k)-dzLim)/(max_elev-dzLim)) & 
+                   + (1.0-precLimit)
+       else
+               Sscl(k) = 1.0
+       endif
+
+end do
+
 do n = 1, Ntim
+  recalc_swe = 0
+  if (n.eq.1) recalc_swe = 1
+  if (n.gt.1) then
+          if (months(n).ne.months(n-1)) recalc_swe = 1
+  endif
   do k = 1, Nbnd
+    if (recalc_swe == 1) then
+      SWE0(k) = sum(Sice(:,k)) + sum(Sliq(:,k))
+    endif
     call DOWNSCALE(LW(n),Ps(n),Qa(n),Rf(n),Sf(n),SW(n),Ta(n),Ua(n),    &
-                   dz(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz) 
+                   dz(k),Sscl(k),LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz) 
     call FSM_TIMESTEP(Nice,Nsmx,                                       &
                       Dice,Dmin,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,       &
                       albs(k),Dsnw(:,k),Nsnw(k),Sice(:,k),Sliq(:,k),   &
@@ -279,12 +328,16 @@ do n = 1, Ntim
       RoffGl(1+(n-1)/n_roff) = RoffGl(1+(n-1)/n_roff) + RofI(k) * areas(k)
     endif
   end do
-  massb = massb - Mice
+  massb(months(n),:) = massb(months(n),:) - Mice
+  if (n.eq.Ntim) then
+      massb(months(n),:) = massb(months(n),:) + SWE - SWE0
+  else if (months(n+1).ne.months(n)) then
+      massb(months(n),:) = massb(months(n),:) + SWE - SWE0
+  endif
   do k = 1, Nbnd
     Hice(k) = MAX(Hice(k) - Mice(k)/rho_ice,0.0)
   end do
 end do
-massb = massb + SWE - SWE0
 
 ! -- below is to test that arrays are being passed and is commented
 ! -- floats are only correct to about 1 in 10^-8
@@ -338,7 +391,8 @@ implicit none
 namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
                   tmlt,trho,Wirr,z0sn,                                 &
                   aice,z0ic, rho_ice,                                  &
-                  elapse,Plapse,Tlapse, Pf, sigmoidDscale
+                  elapse,Plapse,Tlapse, Pf, sigmoidDscale, precLimit,  &
+                  slctle
 
 ! Snow parameters
   asmx = 0.85         ! Maximum albedo for fresh snow
@@ -367,6 +421,8 @@ namelist /params/ asmx,asmn,bstb,bthr,hfsn,rhof,rcld,rmlt,Salb,tcld,   &
   Tlapse = 6.5e-3     ! Temperature laspe rate (K/m)
   Pf = 1.2            ! Precipitation multiplier
   sigmoidDscale = 0   ! sigmoid fn for solid fraction (1 or 0)
+  slctle = .75        ! Snow limit elevation centile threshold (0 to 1)
+  precLimit = 0       ! limit highest snow precip (1 or 0) [following Rounce and Hock (2015)]
   
 open(8,file='nlst') 
 read(8,params)
@@ -378,7 +434,7 @@ end subroutine SET_PARAMETERS
 ! Downscale reference meteorological data to elevation band
 !-----------------------------------------------------------------------
 subroutine DOWNSCALE(LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,                          &
-                     dz,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz)
+                     dz,Sscl,LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz)
 
 use CONSTANTS, only: &
   Tm                  ! Melting point (K)
@@ -388,13 +444,16 @@ use PARAMETERS, only: &
   Plapse,            &! Precipitation adjustment factor (1/m)
   Tlapse,            &! Temperature lapse rate (K/m)
   Pf,                &! precip fac
-  sigmoidDscale       ! sigmoid fn for solid fraction (1 or 0)
+  sigmoidDscale,     &! sigmoid fn for solid fraction (1 or 0)
+  slctle,            &! Snow limit elevation centile threshold (0 to 1)
+  precLimit           ! limit highest snow precip (1 or 0) [following Rounce and Hock (2015)]
 
 implicit none
 
 ! Meteorological variables at reference elevation
 real, intent(in) :: &
   dz,                &! Elevation relative to reference height (m)
+  Sscl,              &! scaling of snow precip due to high relief at elev
   LW,                &! Incoming longwave radiation (W/m^2)
   Ps,                &! Surface pressure (Pa)
   Qa,                &! Specific humidity (kg/kg)
@@ -437,7 +496,9 @@ fs0 = 1 - 0.5*(Taz - 273.15)
 fs0 = min(1.,max(fs0,0.))
 fs = sigmoidDscale * fs1 + (1-sigmoidDscale) * fs0
 Rfz = (1 - fs)*Pr
-Sfz = fs*Pr
+Sfz = Sscl*fs*Pr
+
+
 
 end subroutine DOWNSCALE
 

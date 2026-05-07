@@ -44,7 +44,7 @@ cfg.PARAMS['FSM_Nbnds'] = 15
 
 # if True, this will run FSM for one year when FactorialSnowpackModel is 
 # initiated, and the results will be the saved "initial state"
-cfg.PARAMS['FSM_spinup'] = False
+cfg.PARAMS['FSM_spinup'] = True
 
 # Here is how an FSM parameter (asmx) is set. this will create a 
 # namelist entry with the value equal to the default
@@ -112,8 +112,6 @@ if reset:
 else:
     gdirs = workflow.init_glacier_directories(selection)
 
-
-
 elevation_band_task_list = [
     tasks.simple_glacier_masks,
     tasks.elevation_band_flowline,
@@ -140,9 +138,8 @@ workflow.calibrate_inversion_from_consensus(
     gdirs,
     apply_fs_on_mismatch=True,
     error_on_mismatch=True,  # if you're running many glaciers some might not work
-    filter_inversion_output=True,  # this partly filters the over deepening due to
+    filter_inversion_output=True  # this partly filters the over deepening due to
 #    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
-    volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
 )
 
 # finally create the dynamic flowlines

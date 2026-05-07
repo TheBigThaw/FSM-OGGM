@@ -23,6 +23,7 @@ from progressbar import ProgressBar, Percentage, Bar
 import FSM
 import f90nml
 import pickle, gzip
+from collections.abc import Iterable
 
 cfg.add_to_basenames('WFDE5_Hintereisferner_1980-2019',
                      'WFDE5_Hintereisferner_1980-2019.nc',
@@ -372,12 +373,13 @@ class FactorialSnowpackModel(MassBalanceModel):
                  gdir,
                  filename='climate_historical_fsm',
                  input_filesuffix='',
-                 mb=0.,
+                 settings_filesuffix='',
                  zmin=None,
                  zmax=None,
                  Nbnd=15,
-                 bias=0.,
-                 runoff_filesuffix=''):
+                 bias=0.):
+        self.settings_filesuffix = settings_filesuffix
+        gdir.settings_filesuffix = settings_filesuffix
         super(FactorialSnowpackModel, self).__init__()
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in ma
@@ -454,7 +456,6 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.years = np.array([date.year for date in dates])
             self.months = np.array([date.month for date in dates])
             self.days = np.array([date.day for date in dates])
-        self._mb = mb
         self.ys = min(self.years)
         self.ye = max(self.years)
 
@@ -593,9 +594,17 @@ class FactorialSnowpackModel(MassBalanceModel):
 
         f90nml.write(nml,'nlst',force=True)
 
-    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False):
+    def get_annual_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False, **kwargs):
 
         # return annual mass balance either at prescribed elev bands or within segments
+        # of a flowline model. If the latter, returns zero past the terminus
+
+        return self.get_mb(heights, year, fls, fl_id, reset_state, monthly=False)
+
+
+    def get_mb(self, heights=None, year=None, fls=None, fl_id=None, reset_state=False, monthly=False):
+
+        # return mass balance either by year or month either at prescribed elev bands or within segments
         # of a flowline model. If the latter, returns zero past the terminus
 
         if fls is None:
@@ -624,7 +633,10 @@ class FactorialSnowpackModel(MassBalanceModel):
             bed = heights-100
 
         if year is not None:
-            inds = np.where(self.years==year)
+            if isinstance(year,Iterable):
+                inds = np.isin(self.years,year)
+            else:
+                inds = np.where(self.years==year)
         else:
             inds = np.where(self.years > -99999)
 
@@ -637,6 +649,7 @@ class FactorialSnowpackModel(MassBalanceModel):
         Ta=self.Ta[inds]
         Ua=self.Ua[inds]
         time=self.time[inds]
+        months=self.months[inds]
         Ntim=int(len(time))
 
         if (self.interp_bnds):
@@ -658,10 +671,13 @@ class FactorialSnowpackModel(MassBalanceModel):
         else:
             Nroff = 1
 
+        if reset_state:
+            self.reset_state()
+
         if Nbnd>0:
-            mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.Dice, self.Dmin, dz, LW, Ps,
-                       Qa, Rf, Sf, SW, Ta, Ua,
-                       areas[:Nseg], heights[:Nseg], bed[:Nseg],
+            mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.Dice, self.Dmin, dz, 
+                       months, LW, Ps, Qa, Rf, Sf, SW, Ta, Ua,
+                       areas[:Nseg], heights[:Nseg]-bed[:Nseg],
                        self.albs[:Nbnd],
                        self.Dsnw[:,:Nbnd], self.Nsnw[:Nbnd],
                        self.Sice[:,:Nbnd], self.Sliq[:,:Nbnd], 
@@ -675,9 +691,10 @@ class FactorialSnowpackModel(MassBalanceModel):
 
         else:
             # this is to address the case where the entire glacier has retreated
-            mbloc = np.empty(0)
+            mbloc = np.empty(12,0)
             roffgl = np.zeros(Nroff) # kg
             roffsn = np.zeros(Nroff)
+
 
         # output is in kg / m^2 -- need to convert to m/s over a suitable baseline
         if year is None:
@@ -686,7 +703,8 @@ class FactorialSnowpackModel(MassBalanceModel):
             baseline_y = 1
 
         rho = self.rho = cfg.PARAMS['ice_density']
-        mbloc = (mbloc / baseline_y) / SEC_IN_YEAR / rho # meters per second
+        # use SEC_IN_YEAR/12 as standard seconds per month
+        mbloc = (mbloc / baseline_y) / (SEC_IN_YEAR/12.) / rho # meters per second
 
         if self.save_runoff:
             datetimearr = np.array([np.datetime64(f"{y}-{m:02d}-{d:02d}") for y, m, d in zip(self.years[inds], self.months[inds], self.days[inds])])
@@ -700,20 +718,24 @@ class FactorialSnowpackModel(MassBalanceModel):
                 self.runoff_ice = np.concatenate((self.runoff_ice,roffgl))
                 self.runoff_snow = np.concatenate((self.runoff_snow, roffsn))
 
+        mb = np.zeros((12,len(heights)))
+
         if self.interp_bnds:
             if min(heights) < self.zmin or max(heights) > self.zmax:
                 raise RuntimeError(f'The heights provided are outside of the '
                                    f'elevation bands for FSM')
-
             else:
-
-                func = interp1d(self.zbnd, mbloc)
-                mb = func (heights)
+                mb = np.zeros((12,Nbnd))
+                for i in range(12):
+                    func = interp1d(self.zbnd, mbloc[i,:])
+                    mb[i,:] = func (heights)
         else:
-            mb[:Nbnd] = mbloc
+            mb[:,:Nbnd] = mbloc
+
+        if not monthly:
+            mb = np.mean(mb,axis=0)
 
         return mb
-
 
     def is_year_valid(self, year):
         return self.ys <= year <= self.ye
