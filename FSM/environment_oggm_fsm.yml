@@ -29,7 +29,8 @@ dependencies:
   - motionless
   - f90nml
   - ipython
-  - pip 
+  - pip
+  - setuptools==74.1.2
   - pip:
     - meson
     - ninja

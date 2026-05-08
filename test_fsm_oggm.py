@@ -79,7 +79,7 @@ cfg.PARAMS['store_model_geometry'] = True
 cfg.PARAMS['store_fl_diagnostics'] = True
 
 base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
-            'gdirs/oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5_w_data/')
+            'gdirs/oggm_v1.6/L3-L5_files/2025.6/elev_bands/W5E5/per_glacier_spinup')
 
 fr = utils.get_rgi_region_file(11, version='62', reset=False)
 gdf = gpd.read_file(fr)
@@ -113,7 +113,7 @@ else:
     gdirs = workflow.init_glacier_directories(selection)
 
 elevation_band_task_list = [
-    tasks.simple_glacier_masks,
+    tasks.glacier_masks,
     tasks.elevation_band_flowline,
     tasks.fixed_dx_elevation_band_flowline,
     tasks.compute_downstream_line,
