@@ -81,7 +81,7 @@ cfg.PARAMS['store_fl_diagnostics'] = True
 base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
             'gdirs/oggm_v1.6/L3-L5_files/2025.6/elev_bands/W5E5/per_glacier_spinup')
 
-fr = utils.get_rgi_region_file(11, version='62', reset=False)
+fr = utils.get_rgi_region_file(11, version='62', reset=reset)
 gdf = gpd.read_file(fr)
 
 ## Selecting the glaciers that belong to the Rofental catchment
