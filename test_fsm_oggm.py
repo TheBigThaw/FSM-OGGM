@@ -112,21 +112,21 @@ if reset:
 else:
     gdirs = workflow.init_glacier_directories(selection)
 
-elevation_band_task_list = [
-    tasks.glacier_masks,
-    tasks.elevation_band_flowline,
-    tasks.fixed_dx_elevation_band_flowline,
-    tasks.compute_downstream_line,
-    tasks.compute_downstream_bedshape,
-    tasks.gridded_attributes,
-    tasks.gridded_mb_attributes,
-]
+#elevation_band_task_list = [
+#    tasks.glacier_masks,
+#    tasks.elevation_band_flowline,
+#    tasks.fixed_dx_elevation_band_flowline,
+#    tasks.compute_downstream_line,
+#    tasks.compute_downstream_bedshape,
+#    tasks.gridded_attributes,
+#    tasks.gridded_mb_attributes,
+#]
 
 
 print('multiprocessing' + str(cfg.PARAMS['use_multiprocessing']))
 
-for task in elevation_band_task_list:
-    workflow.execute_entity_task(task, gdirs)
+#for task in elevation_band_task_list:
+#    workflow.execute_entity_task(task, gdirs)
 
 
 
