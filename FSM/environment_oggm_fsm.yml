@@ -29,10 +29,11 @@ dependencies:
   - motionless
   - f90nml
   - ipython
-  - pip 
+  - pip
   - pip:
     - meson
     - ninja
     - tables
     - joblib
     - progressbar2
+    - setuptools==59.8.0
