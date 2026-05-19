@@ -30,10 +30,10 @@ dependencies:
   - f90nml
   - ipython
   - pip
-  - setuptools==74.1.2
   - pip:
     - meson
     - ninja
     - tables
     - joblib
     - progressbar2
+    - setuptools==59.8.0
