@@ -35,5 +35,7 @@ dependencies:
     - ninja
     - tables
     - joblib
+    - cfgrib
+    - setuptools==59.8.0 
     - progressbar2
     - setuptools==59.8.0
