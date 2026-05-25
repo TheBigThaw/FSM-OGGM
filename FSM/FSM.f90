@@ -250,7 +250,7 @@ real, dimension(Nroff), intent(out) :: RoffGl
 real, dimension(Nroff), intent(out) :: RoffSn
 integer :: k,n,n_roff
 real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0,Hice,Sscl
-real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,min_elev,max_elev,dzLim
+real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,min_elev,max_elev,dzLim,elev_range
 integer :: recalc_swe
 
 call SET_PARAMETERS
@@ -287,6 +287,11 @@ do k = 1, Nbnd
 end do
 
 dzLim = min_elev + (max_elev-min_elev)*slctle
+elev_range = max_elev-min_elev
+
+if (elev_range.lt.900) then
+        preclimit = 0.
+endif
 
 do k = 1, Nbnd
 
