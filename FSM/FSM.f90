@@ -251,7 +251,7 @@ real, dimension(Nroff), intent(out) :: RoffGl
 real, dimension(Nroff), intent(out) :: RoffSn
 integer :: k,n,n_roff
 real, dimension(Nbnd) :: Mice,RofI,RofS,snd,SWE,SWE0,Hice,Sscl
-real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,min_elev,max_elev,dzLim,elev_range
+real :: LWz,Psz,Qaz,Rfz,Sfz,SWz,Taz,Uaz,min_elev,max_elev,dzLim
 integer :: recalc_swe
 
 call SET_PARAMETERS
