@@ -218,7 +218,7 @@ end module PARAMETERS
 !      as well as RoffGl and RoffSn output arrays. Declarations below
 !      modified similarly
 
-subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,                       &
+subroutine FSMpy(Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff,erange,                &
                  Dice,Dmin,dz,months,LW,Ps,Qa,Rf,Sf,SW,Ta,Ua,          &
                  areas, HiceInit,                                      &
                  albs,Dsnw,Nsnw,Sice,Sliq,Tice,Tsnw,Tsrf,massb,        &
@@ -233,6 +233,7 @@ implicit none
 integer, intent(in) :: Nbnd,Nice,Nsmx,Ntim,Nseg,Nroff
                                                      ! Nroff: number of runoff records
                                                      ! should be ntim / (# of time steps in roff freq)
+real, intent(in) :: erange                           ! original elev range, may differ from current geometry                          
 real, dimension(Nice), intent(in) :: Dice
 real, dimension(Nsmx), intent(in) :: Dmin
 real, dimension(Nbnd), intent(in) :: dz
@@ -286,10 +287,7 @@ do k = 1, Nbnd
 
 end do
 
-dzLim = min_elev + (max_elev-min_elev)*slctle
-elev_range = max_elev-min_elev
-
-if (elev_range.lt.900) then
+if (erange.lt.1000) then
         preclimit = 0.
 endif
 
