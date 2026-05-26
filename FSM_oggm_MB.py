@@ -378,6 +378,10 @@ class FactorialSnowpackModel(MassBalanceModel):
                  zmax=None,
                  Nbnd=15,
                  bias=0.):
+
+        h,w = gdir.get_inversion_flowline_hw()
+        self.elev_range = h.max()-h.min()
+
         self.settings_filesuffix = settings_filesuffix
         gdir.settings_filesuffix = settings_filesuffix
         super(FactorialSnowpackModel, self).__init__()
@@ -675,7 +679,7 @@ class FactorialSnowpackModel(MassBalanceModel):
             self.reset_state()
 
         if Nbnd>0:
-            mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.Dice, self.Dmin, dz, 
+            mbloc, roffgl, roffsn = FSM.fsmpy(Nroff, self.elev_range, self.Dice, self.Dmin, dz, 
                        months, LW, Ps, Qa, Rf, Sf, SW, Ta, Ua,
                        areas[:Nseg], heights[:Nseg]-bed[:Nseg],
                        self.albs[:Nbnd],
@@ -688,6 +692,7 @@ class FactorialSnowpackModel(MassBalanceModel):
                        nsmx=self.Nsmx, 
                        ntim=Ntim, 
                        nseg=Nseg)
+
 
         else:
             # this is to address the case where the entire glacier has retreated
