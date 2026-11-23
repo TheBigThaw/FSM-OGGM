@@ -582,9 +582,20 @@ class FactorialSnowpackModel(MassBalanceModel):
         names = []
         vals = []
         for key in params.keys():
-            if (key[:10] == 'FSM_param_'): 
-                names.append(key[10:])
-                vals.append(params[key])
+            if (key[:10] == 'FSM_param_'):
+
+                fsmNamekey = key[10:]
+
+                # last 3 chars contain "log" --> take exponent first
+                if fsmNamekey[-3:].lower() == 'log':
+                    fsmNamekey = fsmNamekey[:-3]
+                    val = np.exp(params[key])
+                else:
+                    val = params[key]
+
+                names.append(fsmNamekey)
+                vals.append(val)
+
 
         if reset:
             nml = { 'params': {} }
